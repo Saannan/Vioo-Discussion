@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get, equalTo } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyD-JI0Lh4IzHYiD-RpzAJGQzOr6oxU4CwA",
@@ -28,6 +28,10 @@ const updateUsernameInput = document.getElementById('update-username');
 const updatePfpInput = document.getElementById('update-pfp');
 const banModal = document.getElementById('ban-modal');
 const banUsernameEl = document.getElementById('ban-username');
+const banNotificationModal = document.getElementById('ban-notification-modal');
+const banNotificationTitle = document.getElementById('ban-notification-title');
+const banNotificationMessage = document.getElementById('ban-notification-message');
+const modalOkBtn = document.getElementById('modal-ok-btn');
 const toastNotification = document.getElementById('toast-notification');
 const cancelReplyBtn = document.getElementById('cancel-reply-btn');
 const submitBtn = document.getElementById('submit-btn');
@@ -37,9 +41,7 @@ const imagePreviewContainer = document.getElementById('image-preview-container')
 const imageViewer = document.getElementById('image-viewer');
 const imageViewerImg = imageViewer.querySelector('img');
 const uploadOverlay = document.getElementById('upload-overlay');
-const statusModal = document.getElementById('status-modal');
-const statusModalText = document.getElementById('status-modal-text');
-const statusModalOkBtn = document.getElementById('status-modal-ok-btn');
+const uploadStatusText = document.getElementById('upload-status-text');
 
 let currentUser = null;
 let currentUserProfile = null;
@@ -52,17 +54,11 @@ let messagesLoaded = false;
 let pinnedCommentId = null;
 let profileHasChanges = false;
 let filesToUpload = [];
-let wasBanned = null;
 
 function showToast(message) {
     toastNotification.textContent = message;
     toastNotification.classList.add('show');
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3000);
-}
-
-function showStatusModal(text) {
-    statusModalText.textContent = text;
-    statusModal.classList.add('visible');
 }
 
 function getAvatarUrl(userProfile, fallbackName = 'U') {
@@ -117,11 +113,10 @@ function createMessageHTML(msg) {
     if(isCurrentUserAdmin) {
         menuOptions += `<button class="pin-btn"><i class="fas fa-thumbtack"></i> ${isPinned ? 'Unpin' : 'Pin'} Comment</button>`;
     }
-    if(isOwner) {
-        menuOptions += '<button class="delete-btn"><i class="fas fa-trash"></i> Delete Comment</button>';
+    if(isOwner || canAdminAct) {
+        menuOptions += `<button class="delete-btn"><i class="fas fa-trash"></i> Delete Comment</button>`;
     }
     if(canAdminAct) {
-        menuOptions += `<button class="admin-delete-btn"><i class="fas fa-trash-alt"></i> Delete Comment</button>`;
         menuOptions += `<button class="admin-ban-btn"><i class="fas fa-user-slash"></i> Ban User</button>`;
     }
 
@@ -239,52 +234,60 @@ function buildAndRenderHTML() {
     });
 }
 
-function listenForBanStatus(user) {
+async function checkBanStatus(user) {
     const banRef = ref(db, `bannedUsers/${user.uid}`);
-    onValue(banRef, (snapshot) => {
-        const banData = snapshot.val();
-        const isCurrentlyBanned = banData && banData.bannedUntil > Date.now();
-        if (wasBanned === null) {
-            wasBanned = isCurrentlyBanned;
-            return;
-        }
-        if (wasBanned && !isCurrentlyBanned) {
-            showStatusModal('Your account has been unbanned. You can now participate again.');
-        } else if (!wasBanned && isCurrentlyBanned) {
-            showStatusModal('Your account has been banned by an administrator.');
-        }
-        wasBanned = isCurrentlyBanned;
-    });
+    const snapshot = await get(banRef);
+    if (!snapshot.exists()) return true;
+
+    const banInfo = snapshot.val();
+    const isBanExpired = Date.now() >= banInfo.bannedUntil;
+
+    if (isBanExpired) {
+        banNotificationTitle.textContent = 'Account Restored';
+        banNotificationMessage.textContent = 'Your account has been unbanned. Please follow the community guidelines.';
+        banNotificationModal.classList.add('visible');
+        await remove(banRef);
+        return true;
+    } else {
+        banNotificationTitle.textContent = 'Account Banned';
+        const expiryDate = new Date(banInfo.bannedUntil).toLocaleString();
+        banNotificationMessage.textContent = `Your account is currently banned until ${expiryDate}.`;
+        banNotificationModal.classList.add('visible');
+        return false;
+    }
 }
 
 function listenForRealtimeUpdates() {
     onValue(ref(db, 'pinnedComment'), (snapshot) => {
         pinnedCommentId = snapshot.val();
-        buildAndRenderHTML();
+        if (usersLoaded && messagesLoaded) buildAndRenderHTML();
     });
 
     onValue(ref(db, 'users'), (snapshot) => {
         allUsersCache = snapshot.val() || {};
         usersLoaded = true;
         if (currentUser) currentUserProfile = allUsersCache[currentUser.uid] || currentUserProfile;
-        buildAndRenderHTML();
+        if (messagesLoaded) buildAndRenderHTML();
     });
 
     const messagesQuery = query(ref(db, 'comments'), orderByChild('timestamp'));
     onValue(messagesQuery, (snapshot) => {
         allMessagesCache = snapshot.val() || {};
         messagesLoaded = true;
-        buildAndRenderHTML();
+        if (usersLoaded) buildAndRenderHTML();
     });
 }
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
+        const canProceed = await checkBanStatus(user);
+        if (!canProceed) return;
+        
         currentUser = user;
         const userRef = ref(db, `users/${user.uid}`);
-        const snapshot = await get(userRef);
-        if (snapshot.exists()) {
-            currentUserProfile = snapshot.val();
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+            currentUserProfile = userSnapshot.val();
         } else {
             const newProfile = { role: 'user', username: user.displayName || `user${user.uid.substring(0, 5)}`, profilePictureUrl: '' };
             await set(userRef, newProfile);
@@ -296,7 +299,6 @@ onAuthStateChanged(auth, async (user) => {
             headerAvatar.classList.add('loaded');
         };
         listenForRealtimeUpdates();
-        listenForBanStatus(user);
     } else {
         window.location.href = 'sign.html';
     }
@@ -334,8 +336,7 @@ function resetFormUI() {
     messageInput.value = '';
     messageInput.style.height = 'auto';
     submitBtn.style.display = 'flex';
-    cancelReplyBtn.style.display = 'none';
-    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    cancelReplyBtn.parentElement.style.display = 'none';
     imagePreviewContainer.innerHTML = '';
     filesToUpload = [];
     imageUploadInput.value = '';
@@ -353,9 +354,7 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
     }
 
     submitBtn.disabled = true;
-
     const uploadedImageUrls = filesToUpload.filter(f => f.status === 'uploaded').map(f => f.url);
-
     const newMessageRef = push(ref(db, 'comments'));
     const messageData = {
         id: newMessageRef.key, userId: currentUser.uid, timestamp: serverTimestamp(),
@@ -382,18 +381,21 @@ chatMessagesContainer.addEventListener('click', (e) => {
     const messageId = thread.dataset.id;
     
     if (target.closest('.menu-btn')) {
-        document.querySelectorAll('.menu-popup').forEach(p => p.classList.remove('open-up'));
-        const menuBtn = target.closest('.menu-btn');
-        const popup = menuBtn.nextElementSibling;
-        const rect = menuBtn.getBoundingClientRect();
-        if (rect.bottom + 150 > window.innerHeight) {
-            popup.classList.add('open-up');
-        }
+        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
+        const popup = thread.querySelector('.menu-popup');
         popup.style.display = 'block';
+        const popupRect = popup.getBoundingClientRect();
+        if (popupRect.bottom > window.innerHeight) {
+            popup.style.top = 'auto';
+            popup.style.bottom = '25px';
+        } else {
+            popup.style.top = '25px';
+            popup.style.bottom = 'auto';
+        }
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
         set(ref(db, 'pinnedComment'), isAlreadyPinned ? null : messageId);
-    } else if (target.matches('.delete-btn, .admin-delete-btn')) {
+    } else if (target.matches('.delete-btn')) {
         const idsToDelete = new Set();
         function findRepliesRecursive(pId) {
             idsToDelete.add(pId);
@@ -410,7 +412,7 @@ chatMessagesContainer.addEventListener('click', (e) => {
         replyState = { parentId: messageId };
         messageInput.placeholder = `Replying to @${thread.dataset.username}...`;
         submitBtn.style.display = 'none';
-        cancelReplyBtn.style.display = 'flex';
+        cancelReplyBtn.parentElement.style.display = 'flex';
         messageInput.focus();
     } else if (target.matches('.toggle-replies-btn')) {
         const mainWrapper = target.closest('.comment-thread-wrapper');
@@ -427,15 +429,13 @@ chatMessagesContainer.addEventListener('click', (e) => {
 });
 
 cancelReplyBtn.addEventListener('click', resetFormUI);
-
 messageInput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = `${this.scrollHeight}px`;
     if (replyState.parentId) {
         const hasText = this.value.trim().length > 0;
         submitBtn.style.display = hasText ? 'flex' : 'none';
-        cancelReplyBtn.style.display = hasText ? 'none' : 'flex';
-        if (hasText) submitBtn.innerHTML = '<i class="fas fa-reply"></i>';
+        cancelReplyBtn.parentElement.style.display = hasText ? 'none' : 'flex';
     }
 });
 
@@ -509,17 +509,25 @@ banModal.addEventListener('click', async (e) => {
             await set(ref(db, `bannedUsers/${userIdToBan}`), {
                 bannedBy: currentUser.uid, bannedUntil: banUntil, timestamp: serverTimestamp()
             });
-
-            const commentsToDelete = Object.values(allMessagesCache).filter(msg => msg.userId === userIdToBan);
-            const deletePromises = commentsToDelete.map(msg => remove(ref(db, `comments/${msg.id}`)));
-            if (commentsToDelete.some(msg => msg.id === pinnedCommentId)) {
-                deletePromises.push(remove(ref(db, 'pinnedComment')));
+            const commentsQuery = query(ref(db, 'comments'), orderByChild('userId'), equalTo(userIdToBan));
+            const snapshot = await get(commentsQuery);
+            if (snapshot.exists()) {
+                const updates = {};
+                snapshot.forEach(child => {
+                    updates[child.key] = null;
+                    if (child.key === pinnedCommentId) {
+                        updates['pinnedComment'] = null;
+                    }
+                });
+                await update(ref(db, 'comments'), updates);
             }
-            await Promise.all(deletePromises);
-
-            showToast('User has been banned and their comments were deleted.');
+            showToast('User has been banned and their comments deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
     }
+});
+
+modalOkBtn.addEventListener('click', () => {
+    banNotificationModal.classList.remove('visible');
 });
 
 imageViewer.addEventListener('click', (e) => {
@@ -528,13 +536,13 @@ imageViewer.addEventListener('click', (e) => {
     }
 });
 
-statusModalOkBtn.addEventListener('click', () => {
-    statusModal.classList.remove('visible');
-});
-
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
-        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.menu-popup').forEach(p => {
+            p.style.top = '25px';
+            p.style.bottom = 'auto';
+            p.style.display = 'none';
+        });
     }
     if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
         if (profilePopup.style.display === 'block') {

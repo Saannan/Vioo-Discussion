@@ -107,17 +107,23 @@
         }
         #chat-form-wrapper { flex-shrink: 0; background-color: var(--bg-color); padding: 10px 0; border-top: 1px solid var(--accent-color); }
         #chat-form { display: flex; flex-direction: column; gap: 10px; }
-        .main-form-row { display: flex; align-items: flex-start; gap: 10px; }
+        .main-form-row { display: flex; align-items: flex-end; gap: 10px; }
         #image-upload-btn {
             background: none; border: none; color: var(--gold-color); font-size: 1.5em;
-            cursor: pointer; padding: 12px 5px; transition: opacity 0.2s ease;
+            cursor: pointer; padding: 0; margin: 0 8px; transition: opacity 0.2s ease; line-height: 1;
         }
         #image-upload-btn:hover { opacity: 0.8; }
         .form-content {
             width: 100%; display: flex; align-items: center; background-color: var(--secondary-color);
             border-radius: 20px; padding: 5px 5px 5px 15px;
         }
-        #image-preview-container { display: flex; gap: 8px; margin-left: 55px; }
+        #submit-btn {
+            background-color: var(--gold-color); color: var(--bg-color);
+            border: none; cursor: pointer; width: 48px; height: 48px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 1.1em; flex-shrink: 0; transition: all 0.3s ease;
+        }
+        #image-preview-container { display: flex; gap: 8px; margin-left: 15px; }
         .img-preview { position: relative; width: 60px; height: 60px; }
         .img-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
         .img-preview .remove-img-btn {
@@ -139,12 +145,9 @@
         #message:focus { outline: none; }
         .form-actions { display: flex; align-items: center; justify-content: center; }
         .form-actions button {
-            background-color: var(--gold-color); color: var(--bg-color);
-            border: none; cursor: pointer; width: 40px; height: 40px;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            font-size: 1.1em; flex-shrink: 0; transition: all 0.3s ease;
+            background-color: var(--accent-color); color: var(--text-color); font-size: 1.3em;
+            width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
         }
-        #cancel-reply-btn { background-color: var(--accent-color); color: var(--text-color); font-size: 1.3em; }
         #chat-messages { display: flex; flex-direction: column; }
         .comment-thread-wrapper { position: relative; }
         .pinned-comment-wrapper {
@@ -199,7 +202,6 @@
             background-color: var(--secondary-color); border: 1px solid var(--accent-color);
             border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10; overflow: hidden; min-width: 150px;
         }
-        .menu-popup.open-up { top: auto; bottom: 100%; margin-bottom: 5px; }
         .menu-popup button {
             display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none;
             color: var(--text-color); padding: 9px 15px; text-align: left; cursor: pointer;
@@ -223,17 +225,15 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.5); max-width: 400px; width: 90%;
             transform: scale(0.95); transition: all 0.3s ease; text-align: center;
         }
-        #status-modal .modal-content p { color: var(--text-color); margin-bottom: 20px; }
-        #status-modal-ok-btn {
-            background-color: var(--gold-color); color: var(--bg-color); border: none; border-radius: 5px;
-            padding: 10px 30px; font-family: var(--font-family); font-weight: 700; cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        #status-modal-ok-btn:hover { opacity: 0.9; }
         .modal-overlay.visible .modal-content { transform: scale(1); }
         .modal-content h2 { font-size: 1.4em; margin-bottom: 8px; }
         .modal-content p { font-size: 0.95em; color: #a0a0a0; margin-bottom: 20px; }
         .modal-content p strong { color: var(--primary-color); font-weight: 500; }
+        .modal-content #modal-ok-btn {
+            background-color: var(--gold-color); color: var(--bg-color); border: none;
+            border-radius: 5px; padding: 10px 30px; cursor: pointer; font-family: var(--font-family);
+            font-weight: 700; font-size: 1em;
+        }
         .modal-close-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #888; font-size: 1.5em; cursor: pointer; transition: color 0.2s; }
         .modal-close-btn:hover { color: var(--text-color); }
         .ban-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -256,15 +256,20 @@
             transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
         }
         #toast-notification.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
-
+        
         @media (max-width: 768px) {
-            body { font-size: 0.85em; }
-            #header-avatar, #header-avatar-wrapper { width: 35px; height: 35px; }
-            .comment-thread .avatar { width: 35px; height: 35px; }
-            .replies-container { padding-left: 50px; }
-            #image-preview-container, #image-preview-container { margin-left: 50px; }
-            .form-actions button { width: 35px; height: 35px; }
-            #image-upload-btn { padding: 9px 5px; font-size: 1.4em; }
+            body { font-size: 0.6em; }
+            .logo { font-size: 1.4em; }
+            #profile-btn, #header-avatar-wrapper, #header-avatar, .comment-thread .avatar { width: 32px; height: 32px; }
+            .form-content { padding: 2px 2px 2px 12px; }
+            #image-upload-btn { font-size: 1.2em; padding: 10px 5px; }
+            #submit-btn { width: 40px; height: 40px; }
+            .main-form-row { gap: 8px; }
+            #image-preview-container { margin-left: 45px; }
+            .img-preview { width: 45px; height: 45px; }
+            .replies-container { padding-left: 47px; }
+            .comment-thread-wrapper.is-expanded::before { left: 16px; }
+            .comment-images img { max-width: 90px; max-height: 90px; }
         }
     </style>
 </head>
@@ -304,16 +309,16 @@
             <form id="chat-form">
                 <div id="image-preview-container"></div>
                 <div class="main-form-row">
-                    <label for="image-upload-input" id="image-upload-btn" title="Add images">
-                        <i class="fas fa-image"></i>
-                    </label>
-                    <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
                     <div class="form-content">
                         <textarea id="message" placeholder="Join the discussion..." required rows="1"></textarea>
-                        <div class="form-actions">
-                            <button id="submit-btn" type="submit"><i class="fas fa-paper-plane"></i></button>
-                            <button id="cancel-reply-btn" type="button" style="display: none;">&times;</button>
-                        </div>
+                        <label for="image-upload-input" id="image-upload-btn" title="Add images">
+                            <i class="fas fa-image"></i>
+                        </label>
+                        <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
+                    </div>
+                    <button id="submit-btn" type="submit"><i class="fas fa-paper-plane"></i></button>
+                    <div class="form-actions" style="display: none;">
+                        <button id="cancel-reply-btn" type="button">&times;</button>
                     </div>
                 </div>
             </form>
@@ -335,6 +340,14 @@
         </div>
     </div>
 
+    <div id="ban-notification-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="ban-notification-title"></h2>
+            <p id="ban-notification-message"></p>
+            <button id="modal-ok-btn">OK</button>
+        </div>
+    </div>
+
     <div id="image-viewer" class="modal-overlay">
         <button class="modal-close-btn">&times;</button>
         <img src="">
@@ -343,13 +356,6 @@
     <div id="upload-overlay" class="modal-overlay" style="display: none;">
         <div class="spinner"></div>
         <p id="upload-status-text">Uploading image...</p>
-    </div>
-
-    <div id="status-modal" class="modal-overlay">
-        <div class="modal-content">
-            <p id="status-modal-text"></p>
-            <button id="status-modal-ok-btn">OK</button>
-        </div>
     </div>
     
     <div id="toast-notification"></div>
