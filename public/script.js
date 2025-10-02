@@ -28,10 +28,6 @@ const updateUsernameInput = document.getElementById('update-username');
 const updatePfpInput = document.getElementById('update-pfp');
 const banModal = document.getElementById('ban-modal');
 const banUsernameEl = document.getElementById('ban-username');
-const banNotificationModal = document.getElementById('ban-notification-modal');
-const banNotificationTitle = document.getElementById('ban-notification-title');
-const banNotificationMessage = document.getElementById('ban-notification-message');
-const modalOkBtn = document.getElementById('modal-ok-btn');
 const toastNotification = document.getElementById('toast-notification');
 const cancelReplyBtn = document.getElementById('cancel-reply-btn');
 const submitBtn = document.getElementById('submit-btn');
@@ -42,6 +38,9 @@ const imageViewer = document.getElementById('image-viewer');
 const imageViewerImg = imageViewer.querySelector('img');
 const uploadOverlay = document.getElementById('upload-overlay');
 const uploadStatusText = document.getElementById('upload-status-text');
+const statusModal = document.getElementById('status-modal');
+const statusModalText = document.getElementById('status-modal-text');
+const statusModalOk = document.getElementById('status-modal-ok');
 
 let currentUser = null;
 let currentUserProfile = null;
@@ -93,7 +92,7 @@ function createMessageHTML(msg) {
     const isCurrentUserAdmin = currentUserProfile?.role === 'admin' || currentUserProfile?.role === 'superadmin';
     const isTargetAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
     const isTargetSuperAdmin = profile?.role === 'superadmin';
-    const canAdminAct = !isOwner && (isCurrentUserAdmin || (isCurrentUserAdmin && !isTargetSuperAdmin));
+    const canAdminAct = !isOwner && (isCurrentUserAdmin && !isTargetSuperAdmin);
     
     const adminClass = isTargetAdmin ? 'admin-user' : '';
     const adminBadge = isTargetAdmin ? '<i class="fas fa-crown admin-badge"></i>' : '';
@@ -113,10 +112,11 @@ function createMessageHTML(msg) {
     if(isCurrentUserAdmin) {
         menuOptions += `<button class="pin-btn"><i class="fas fa-thumbtack"></i> ${isPinned ? 'Unpin' : 'Pin'} Comment</button>`;
     }
-    if(isOwner || canAdminAct) {
-        menuOptions += `<button class="delete-btn"><i class="fas fa-trash"></i> Delete Comment</button>`;
+    if(isOwner) {
+        menuOptions += '<button class="delete-btn"><i class="fas fa-trash"></i> Delete Comment</button>';
     }
     if(canAdminAct) {
+        menuOptions += `<button class="admin-delete-btn"><i class="fas fa-trash-alt"></i> Delete Comment</button>`;
         menuOptions += `<button class="admin-ban-btn"><i class="fas fa-user-slash"></i> Ban User</button>`;
     }
 
@@ -234,71 +234,72 @@ function buildAndRenderHTML() {
     });
 }
 
-async function checkBanStatus(user) {
-    const banRef = ref(db, `bannedUsers/${user.uid}`);
-    const snapshot = await get(banRef);
-    if (!snapshot.exists()) return true;
-
-    const banInfo = snapshot.val();
-    const isBanExpired = Date.now() >= banInfo.bannedUntil;
-
-    if (isBanExpired) {
-        banNotificationTitle.textContent = 'Account Restored';
-        banNotificationMessage.textContent = 'Your account has been unbanned. Please follow the community guidelines.';
-        banNotificationModal.classList.add('visible');
-        await remove(banRef);
-        return true;
-    } else {
-        banNotificationTitle.textContent = 'Account Banned';
-        const expiryDate = new Date(banInfo.bannedUntil).toLocaleString();
-        banNotificationMessage.textContent = `Your account is currently banned until ${expiryDate}.`;
-        banNotificationModal.classList.add('visible');
-        return false;
-    }
-}
-
 function listenForRealtimeUpdates() {
     onValue(ref(db, 'pinnedComment'), (snapshot) => {
         pinnedCommentId = snapshot.val();
-        if (usersLoaded && messagesLoaded) buildAndRenderHTML();
+        buildAndRenderHTML();
     });
 
     onValue(ref(db, 'users'), (snapshot) => {
         allUsersCache = snapshot.val() || {};
         usersLoaded = true;
         if (currentUser) currentUserProfile = allUsersCache[currentUser.uid] || currentUserProfile;
-        if (messagesLoaded) buildAndRenderHTML();
+        buildAndRenderHTML();
     });
 
     const messagesQuery = query(ref(db, 'comments'), orderByChild('timestamp'));
     onValue(messagesQuery, (snapshot) => {
         allMessagesCache = snapshot.val() || {};
         messagesLoaded = true;
-        if (usersLoaded) buildAndRenderHTML();
+        buildAndRenderHTML();
     });
+}
+
+async function checkBanStatus(user) {
+    const banRef = ref(db, `bannedUsers/${user.uid}`);
+    const banSnapshot = await get(banRef);
+    if (!banSnapshot.exists()) return true;
+
+    const banData = banSnapshot.val();
+    const isBanned = banData.bannedUntil > Date.now();
+
+    if (isBanned) {
+        const expiryDate = new Date(banData.bannedUntil).toLocaleString();
+        statusModalText.innerHTML = `Your account is currently banned.<br>Reason: Violation of community guidelines.<br>Expires: <strong>${banData.bannedUntil === 9999999999999 ? 'Permanent' : expiryDate}</strong>`;
+        statusModal.classList.add('visible');
+        return false;
+    } else {
+        statusModalText.innerHTML = `Your account access has been restored.<br>Please ensure to follow community guidelines to avoid future restrictions.`;
+        statusModal.classList.add('visible');
+        await remove(banRef);
+        return false;
+    }
 }
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        const canProceed = await checkBanStatus(user);
-        if (!canProceed) return;
-        
         currentUser = user;
         const userRef = ref(db, `users/${user.uid}`);
-        const userSnapshot = await get(userRef);
-        if (userSnapshot.exists()) {
-            currentUserProfile = userSnapshot.val();
+        const snapshot = await get(userRef);
+
+        if (snapshot.exists()) {
+            currentUserProfile = snapshot.val();
         } else {
             const newProfile = { role: 'user', username: user.displayName || `user${user.uid.substring(0, 5)}`, profilePictureUrl: '' };
             await set(userRef, newProfile);
             currentUserProfile = newProfile;
         }
+
         headerAvatar.src = getAvatarUrl(currentUserProfile);
         headerAvatar.onload = () => {
             headerAvatarWrapper.classList.add('loaded');
             headerAvatar.classList.add('loaded');
         };
-        listenForRealtimeUpdates();
+
+        const canProceed = await checkBanStatus(user);
+        if(canProceed) {
+            listenForRealtimeUpdates();
+        }
     } else {
         window.location.href = 'sign.html';
     }
@@ -336,7 +337,7 @@ function resetFormUI() {
     messageInput.value = '';
     messageInput.style.height = 'auto';
     submitBtn.style.display = 'flex';
-    cancelReplyBtn.parentElement.style.display = 'none';
+    cancelReplyBtn.style.display = 'none';
     imagePreviewContainer.innerHTML = '';
     filesToUpload = [];
     imageUploadInput.value = '';
@@ -352,9 +353,10 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
         showToast('Please wait for images to finish uploading.');
         return;
     }
-
     submitBtn.disabled = true;
+
     const uploadedImageUrls = filesToUpload.filter(f => f.status === 'uploaded').map(f => f.url);
+
     const newMessageRef = push(ref(db, 'comments'));
     const messageData = {
         id: newMessageRef.key, userId: currentUser.uid, timestamp: serverTimestamp(),
@@ -383,27 +385,30 @@ chatMessagesContainer.addEventListener('click', (e) => {
     if (target.closest('.menu-btn')) {
         document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
         const popup = thread.querySelector('.menu-popup');
-        popup.style.display = 'block';
-        const popupRect = popup.getBoundingClientRect();
-        if (popupRect.bottom > window.innerHeight) {
-            popup.style.top = 'auto';
-            popup.style.bottom = '25px';
+        const btnRect = target.closest('.menu-btn').getBoundingClientRect();
+        if(window.innerHeight - btnRect.bottom < 150) {
+            popup.classList.add('popup-opens-up');
         } else {
-            popup.style.top = '25px';
-            popup.style.bottom = 'auto';
+            popup.classList.remove('popup-opens-up');
         }
+        popup.style.display = 'block';
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
         set(ref(db, 'pinnedComment'), isAlreadyPinned ? null : messageId);
-    } else if (target.matches('.delete-btn')) {
+    } else if (target.matches('.delete-btn, .admin-delete-btn')) {
         const idsToDelete = new Set();
         function findRepliesRecursive(pId) {
             idsToDelete.add(pId);
             Object.values(allMessagesCache).forEach(msg => { if (msg && msg.parentId === pId) findRepliesRecursive(msg.id); });
         }
         findRepliesRecursive(messageId);
-        idsToDelete.forEach(id => { remove(ref(db, `comments/${id}`)); expandedThreads.delete(id); });
-        if(idsToDelete.has(pinnedCommentId)) remove(ref(db, 'pinnedComment'));
+        const updates = {};
+        idsToDelete.forEach(id => {
+            updates[`/comments/${id}`] = null;
+            expandedThreads.delete(id);
+        });
+        if(idsToDelete.has(pinnedCommentId)) updates['/pinnedComment'] = null;
+        update(ref(db), updates);
     } else if (target.matches('.admin-ban-btn')) {
         banUsernameEl.textContent = thread.dataset.username;
         banModal.dataset.userId = thread.dataset.userId;
@@ -411,8 +416,8 @@ chatMessagesContainer.addEventListener('click', (e) => {
     } else if (target.matches('.reply-btn')) {
         replyState = { parentId: messageId };
         messageInput.placeholder = `Replying to @${thread.dataset.username}...`;
+        cancelReplyBtn.style.display = 'flex';
         submitBtn.style.display = 'none';
-        cancelReplyBtn.parentElement.style.display = 'flex';
         messageInput.focus();
     } else if (target.matches('.toggle-replies-btn')) {
         const mainWrapper = target.closest('.comment-thread-wrapper');
@@ -428,14 +433,20 @@ chatMessagesContainer.addEventListener('click', (e) => {
     }
 });
 
-cancelReplyBtn.addEventListener('click', resetFormUI);
+cancelReplyBtn.addEventListener('click', () => {
+    replyState = { parentId: null };
+    messageInput.placeholder = 'Join the discussion...';
+    cancelReplyBtn.style.display = 'none';
+    submitBtn.style.display = 'flex';
+});
+
 messageInput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = `${this.scrollHeight}px`;
     if (replyState.parentId) {
         const hasText = this.value.trim().length > 0;
         submitBtn.style.display = hasText ? 'flex' : 'none';
-        cancelReplyBtn.parentElement.style.display = hasText ? 'none' : 'flex';
+        cancelReplyBtn.style.display = hasText ? 'none' : 'flex';
     }
 });
 
@@ -511,23 +522,21 @@ banModal.addEventListener('click', async (e) => {
             });
             const commentsQuery = query(ref(db, 'comments'), orderByChild('userId'), equalTo(userIdToBan));
             const snapshot = await get(commentsQuery);
-            if (snapshot.exists()) {
+            if(snapshot.exists()){
                 const updates = {};
                 snapshot.forEach(child => {
-                    updates[child.key] = null;
-                    if (child.key === pinnedCommentId) {
-                        updates['pinnedComment'] = null;
-                    }
+                    updates[`/comments/${child.key}`] = null;
                 });
-                await update(ref(db, 'comments'), updates);
+                await update(ref(db), updates);
             }
             showToast('User has been banned and their comments deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
     }
 });
 
-modalOkBtn.addEventListener('click', () => {
-    banNotificationModal.classList.remove('visible');
+statusModalOk.addEventListener('click', () => {
+    statusModal.classList.remove('visible');
+    listenForRealtimeUpdates();
 });
 
 imageViewer.addEventListener('click', (e) => {
@@ -538,11 +547,7 @@ imageViewer.addEventListener('click', (e) => {
 
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
-        document.querySelectorAll('.menu-popup').forEach(p => {
-            p.style.top = '25px';
-            p.style.bottom = 'auto';
-            p.style.display = 'none';
-        });
+        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
     }
     if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
         if (profilePopup.style.display === 'block') {
