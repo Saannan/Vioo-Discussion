@@ -37,7 +37,9 @@ const imagePreviewContainer = document.getElementById('image-preview-container')
 const imageViewer = document.getElementById('image-viewer');
 const imageViewerImg = imageViewer.querySelector('img');
 const uploadOverlay = document.getElementById('upload-overlay');
-const uploadStatusText = document.getElementById('upload-status-text');
+const statusModal = document.getElementById('status-modal');
+const statusModalText = document.getElementById('status-modal-text');
+const statusModalOkBtn = document.getElementById('status-modal-ok-btn');
 
 let currentUser = null;
 let currentUserProfile = null;
@@ -50,11 +52,17 @@ let messagesLoaded = false;
 let pinnedCommentId = null;
 let profileHasChanges = false;
 let filesToUpload = [];
+let wasBanned = null;
 
 function showToast(message) {
     toastNotification.textContent = message;
     toastNotification.classList.add('show');
     setTimeout(() => { toastNotification.classList.remove('show'); }, 3000);
+}
+
+function showStatusModal(text) {
+    statusModalText.textContent = text;
+    statusModal.classList.add('visible');
 }
 
 function getAvatarUrl(userProfile, fallbackName = 'U') {
@@ -231,6 +239,24 @@ function buildAndRenderHTML() {
     });
 }
 
+function listenForBanStatus(user) {
+    const banRef = ref(db, `bannedUsers/${user.uid}`);
+    onValue(banRef, (snapshot) => {
+        const banData = snapshot.val();
+        const isCurrentlyBanned = banData && banData.bannedUntil > Date.now();
+        if (wasBanned === null) {
+            wasBanned = isCurrentlyBanned;
+            return;
+        }
+        if (wasBanned && !isCurrentlyBanned) {
+            showStatusModal('Your account has been unbanned. You can now participate again.');
+        } else if (!wasBanned && isCurrentlyBanned) {
+            showStatusModal('Your account has been banned by an administrator.');
+        }
+        wasBanned = isCurrentlyBanned;
+    });
+}
+
 function listenForRealtimeUpdates() {
     onValue(ref(db, 'pinnedComment'), (snapshot) => {
         pinnedCommentId = snapshot.val();
@@ -270,6 +296,7 @@ onAuthStateChanged(auth, async (user) => {
             headerAvatar.classList.add('loaded');
         };
         listenForRealtimeUpdates();
+        listenForBanStatus(user);
     } else {
         window.location.href = 'sign.html';
     }
@@ -355,8 +382,14 @@ chatMessagesContainer.addEventListener('click', (e) => {
     const messageId = thread.dataset.id;
     
     if (target.closest('.menu-btn')) {
-        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
-        thread.querySelector('.menu-popup').style.display = 'block';
+        document.querySelectorAll('.menu-popup').forEach(p => p.classList.remove('open-up'));
+        const menuBtn = target.closest('.menu-btn');
+        const popup = menuBtn.nextElementSibling;
+        const rect = menuBtn.getBoundingClientRect();
+        if (rect.bottom + 150 > window.innerHeight) {
+            popup.classList.add('open-up');
+        }
+        popup.style.display = 'block';
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
         set(ref(db, 'pinnedComment'), isAlreadyPinned ? null : messageId);
@@ -476,7 +509,15 @@ banModal.addEventListener('click', async (e) => {
             await set(ref(db, `bannedUsers/${userIdToBan}`), {
                 bannedBy: currentUser.uid, bannedUntil: banUntil, timestamp: serverTimestamp()
             });
-            showToast('User has been banned.');
+
+            const commentsToDelete = Object.values(allMessagesCache).filter(msg => msg.userId === userIdToBan);
+            const deletePromises = commentsToDelete.map(msg => remove(ref(db, `comments/${msg.id}`)));
+            if (commentsToDelete.some(msg => msg.id === pinnedCommentId)) {
+                deletePromises.push(remove(ref(db, 'pinnedComment')));
+            }
+            await Promise.all(deletePromises);
+
+            showToast('User has been banned and their comments were deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
     }
 });
@@ -485,6 +526,10 @@ imageViewer.addEventListener('click', (e) => {
     if (e.target === imageViewer || e.target.matches('.modal-close-btn')) {
         imageViewer.classList.remove('visible');
     }
+});
+
+statusModalOkBtn.addEventListener('click', () => {
+    statusModal.classList.remove('visible');
 });
 
 document.addEventListener('click', e => {
