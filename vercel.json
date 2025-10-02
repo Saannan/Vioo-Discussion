@@ -12,12 +12,13 @@
             "dest": "/main.js"
         },
         {
-            "src": "/discussion",
-            "dest": "/public/index.html"
-        },
-        {
             "src": "/(.*)",
             "dest": "/public/$1"
         }
-    ]
+    ],
+    "functions": {
+        "main.js": {
+            "includeFiles": "key/**"
+        }
+    }
 }
