@@ -100,6 +100,11 @@ function createMessageHTML(msg) {
     const isPinned = msg.id === pinnedCommentId;
     const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : '';
 
+    const userHasLiked = currentUser && msg.likes && msg.likes[currentUser.uid];
+    const likeCount = msg.likes ? Object.keys(msg.likes).length : 0;
+    const likeIcon = userHasLiked ? 'fas' : 'far';
+    const likeBtnClass = userHasLiked ? 'like-btn liked' : 'like-btn';
+
     let mentionHTML = '';
     const parentMessage = allMessagesCache[parentId];
     if (parentMessage && parentMessage.parentId) {
@@ -142,8 +147,14 @@ function createMessageHTML(msg) {
                 </div>
                 <div class="comment-body">${bodyHTML}</div>
                 <div class="comment-footer">
-                    <span class="timestamp">${formatTimestamp(timestamp)}</span>
-                    <button class="action-btn reply-btn">Reply</button>
+                    <div class="comment-actions">
+                        <span class="timestamp">${formatTimestamp(timestamp)}</span>
+                        <button class="action-btn reply-btn">Reply</button>
+                    </div>
+                    <button class="${likeBtnClass}">
+                        <i class="${likeIcon} fa-heart"></i>
+                        <span class="like-count">${likeCount > 0 ? likeCount : ''}</span>
+                    </button>
                 </div>
                 ${menuOptions ? `<div class="message-menu"><button class="menu-btn"><i class="fas fa-ellipsis-v"></i></button><div class="menu-popup">${menuOptions}</div></div>` : ''}
             </div>
@@ -197,8 +208,8 @@ function buildAndRenderHTML() {
     if (pinnedCommentId && allMessagesCache[pinnedCommentId]) {
         const pinnedMsg = allMessagesCache[pinnedCommentId];
         const totalReplies = countAllReplies(pinnedMsg.id);
-        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : '', '<button class="action-btn reply-btn">Reply</button>' ].join('');
-        const mainCommentHTML = createMessageHTML(pinnedMsg).replace('<button class="action-btn reply-btn">Reply</button>', footerBtns);
+        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : ''].join('');
+        const mainCommentHTML = createMessageHTML(pinnedMsg).replace(/<button class="action-btn reply-btn">Reply<\/button>/, footerBtns);
         const repliesHTML = appendRepliesRecursive(pinnedMsg.id);
         
         pinnedHTML = `
@@ -215,8 +226,8 @@ function buildAndRenderHTML() {
 
     topLevel.forEach(msg => {
         const totalReplies = countAllReplies(msg.id);
-        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : '', '<button class="action-btn reply-btn">Reply</button>' ].join('');
-        const mainCommentHTML = createMessageHTML(msg).replace('<button class="action-btn reply-btn">Reply</button>', footerBtns);
+        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : ''].join('');
+        const mainCommentHTML = createMessageHTML(msg).replace(/<button class="action-btn reply-btn">Reply<\/button>/, footerBtns);
         const repliesHTML = appendRepliesRecursive(msg.id);
         normalThreadsHTML += `<div class="comment-thread-wrapper" data-main-id="${msg.id}">${mainCommentHTML}<div class="replies-container">${repliesHTML}</div></div>`;
     });
@@ -269,7 +280,7 @@ function listenForRealtimeUpdates() {
         buildAndRenderHTML();
     });
 
-    const messagesQuery = query(ref(db, 'comments'), orderByChild('timestamp'));
+    const messagesQuery = query(ref(db, 'comments'));
     onValue(messagesQuery, (snapshot) => {
         allMessagesCache = snapshot.val() || {};
         messagesLoaded = true;
@@ -378,19 +389,15 @@ chatMessagesContainer.addEventListener('click', (e) => {
     if (!thread) return;
     const messageId = thread.dataset.id;
     
-    const menuBtn = target.closest('.menu-btn');
-    if (menuBtn) {
+    if (target.closest('.menu-btn')) {
         document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
-        const popup = thread.querySelector('.menu-popup');
-        popup.style.display = 'block';
-
-        const rect = popup.getBoundingClientRect();
-        if (rect.bottom > window.innerHeight) {
-            popup.style.top = 'auto';
-            popup.style.bottom = '100%';
+        thread.querySelector('.menu-popup').style.display = 'block';
+    } else if(target.closest('.like-btn')) {
+        const likeRef = ref(db, `comments/${messageId}/likes/${currentUser.uid}`);
+        if(target.closest('.like-btn').classList.contains('liked')) {
+            remove(likeRef);
         } else {
-            popup.style.top = '25px';
-            popup.style.bottom = 'auto';
+            set(likeRef, true);
         }
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
@@ -402,8 +409,10 @@ chatMessagesContainer.addEventListener('click', (e) => {
             Object.values(allMessagesCache).forEach(msg => { if (msg && msg.parentId === pId) findRepliesRecursive(msg.id); });
         }
         findRepliesRecursive(messageId);
-        idsToDelete.forEach(id => { remove(ref(db, `comments/${id}`)); expandedThreads.delete(id); });
-        if(idsToDelete.has(pinnedCommentId)) remove(ref(db, 'pinnedComment'));
+        const updates = {};
+        idsToDelete.forEach(id => { updates[`/comments/${id}`] = null; });
+        if(idsToDelete.has(pinnedCommentId)) updates['/pinnedComment'] = null;
+        update(ref(db), updates);
     } else if (target.matches('.admin-ban-btn')) {
         banUsernameEl.textContent = thread.dataset.username;
         banModal.dataset.userId = thread.dataset.userId;
@@ -518,8 +527,8 @@ banModal.addEventListener('click', async (e) => {
             const commentsSnapshot = await get(query(ref(db, 'comments'), orderByChild('userId').equalTo(userIdToBan)));
             if (commentsSnapshot.exists()) {
                 const updates = {};
-                commentsSnapshot.forEach(child => { updates[child.key] = null; });
-                await update(ref(db, 'comments'), updates);
+                commentsSnapshot.forEach(child => { updates[`/comments/${child.key}`] = null; });
+                await update(ref(db), updates);
             }
             showToast('User has been banned and their comments deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
@@ -536,11 +545,7 @@ statusModalOk.addEventListener('click', () => statusModal.classList.remove('visi
 
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
-        document.querySelectorAll('.menu-popup').forEach(p => {
-            p.style.display = 'none';
-            p.style.top = '25px';
-            p.style.bottom = 'auto';
-        });
+        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
     }
     if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
         if (profilePopup.style.display === 'block') {

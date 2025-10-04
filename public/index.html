@@ -107,7 +107,7 @@
         }
         #chat-form-wrapper { flex-shrink: 0; background-color: var(--bg-color); padding: 10px 0; border-top: 1px solid var(--accent-color); }
         #chat-form { display: flex; flex-direction: column; gap: 10px; }
-        .main-form-row { display: flex; align-items: flex-end; gap: 10px; }
+        .main-form-row { display: flex; align-items: flex-start; gap: 10px; }
         .form-content {
             width: 100%; display: flex; align-items: center; background-color: var(--secondary-color);
             border-radius: 20px; padding: 5px 5px 5px 15px;
@@ -151,7 +151,6 @@
             background-color: rgba(255, 195, 0, 0.05);
             margin: -10px -15px 15px -15px;
             padding: 10px 15px 0 15px;
-            border-bottom: 1px solid rgba(255, 195, 0, 0.1);
             position: relative;
         }
         .pinned-comment-wrapper::before {
@@ -187,7 +186,14 @@
             max-width: 120px; max-height: 120px; border-radius: 8px; cursor: pointer; object-fit: cover;
         }
         .message-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
-        .comment-footer { display: flex; align-items: center; gap: 15px; color: #a0a0a0; }
+        .comment-footer { display: flex; align-items: center; justify-content: space-between; color: #a0a0a0; }
+        .comment-actions { display: flex; align-items: center; gap: 15px; }
+        .like-btn {
+            display: flex; align-items: center; gap: 5px; background: none; border: none; color: #a0a0a0;
+            cursor: pointer; font-size: 0.9em; font-family: var(--font-family); padding: 4px;
+        }
+        .like-btn:hover { color: var(--text-color); }
+        .like-btn .fas { color: var(--red-color); }
         .timestamp { font-size: 0.8em; }
         .action-btn { background: none; border: none; color: #a0a0a0; cursor: pointer; font-size: 0.85em; font-weight: 600; font-family: var(--font-family); padding: 4px 6px; border-radius: 4px; transition: all 0.3s ease; }
         .action-btn:hover { background-color: var(--accent-color); color: var(--text-color); }
@@ -195,8 +201,8 @@
         .menu-btn { background: none; border: none; color: #a0a0a0; cursor: pointer; font-size: 1em; padding: 5px; opacity: 0.6; transition: opacity 0.2s ease; }
         .comment-thread-wrapper:hover .menu-btn, .comment-thread:hover .menu-btn { opacity: 1; }
         .menu-popup {
-            display: none; position: absolute; right: 0; top: 25px;
-            background-color: var(--secondary-color); border: 1px solid var(--accent-color);
+            display: none; position: absolute; right: 0; bottom: 100%; top: auto;
+            background-color: var(--secondary-color); border: 1px solid var(--accent-color); margin-bottom: 5px;
             border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10; overflow: hidden; min-width: 150px;
         }
         .menu-popup button {
@@ -273,6 +279,7 @@
             #image-preview-container { margin-left: 10px; }
             .img-preview { width: 45px; height: 45px; }
             .comment-images img { max-width: 90px; max-height: 90px; }
+            .like-btn { font-size: 0.9em; }
         }
     </style>
 </head>
