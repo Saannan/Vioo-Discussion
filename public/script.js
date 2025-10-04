@@ -37,7 +37,7 @@ async function initializeAppWithConfig() {
         const profileModal = document.getElementById('profile-modal');
         const modalPfpDisplay = document.getElementById('modal-pfp-display');
         const updateUsernameInput = document.getElementById('update-username');
-        const updatePfpInput = document.getElementById('update-pfp');
+        const pfpUploadInput = document.getElementById('pfp-upload-input');
         const logoutBtn = profileModal.querySelector('#logout-btn');
         const bannedUsersSection = document.getElementById('banned-users-section');
         const bannedUsersList = document.getElementById('banned-users-list');
@@ -82,16 +82,6 @@ async function initializeAppWithConfig() {
 
         function escapeHTML(str) {
             return str ? str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])) : '';
-        }
-
-        function displayTruncatedUrl(url) {
-            if (!url) return '';
-            try {
-                const urlObj = new URL(url);
-                return `${urlObj.protocol}//${urlObj.hostname}/`;
-            } catch (e) {
-                return url.substring(0, url.lastIndexOf('/') + 1);
-            }
         }
 
         function createMessageHTML(msg) {
@@ -307,30 +297,20 @@ async function initializeAppWithConfig() {
             }
         });
 
-        async function uploadFileAndStoreUrl(fileObject, previewWrapper) {
-            try {
-                const uniqueFileName = `${Date.now()}-${fileObject.file.name.replace(/\s+/g, '_')}`;
-                const getUrlResponse = await fetch("https://pxpic.com/getSignedUrl", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ folder: "uploads", fileName: uniqueFileName })
-                });
-                if (!getUrlResponse.ok) throw new Error('Failed to get signed URL.');
-                const data = await getUrlResponse.json();
-                const uploadResponse = await fetch(data.presignedUrl, {
-                    method: "PUT", headers: { "Content-Type": fileObject.file.type }, body: fileObject.file
-                });
-                if (!uploadResponse.ok) throw new Error('File upload failed.');
-                
-                fileObject.status = 'uploaded';
-                fileObject.url = "https://files.fotoenhancer.com/uploads/" + uniqueFileName;
-                previewWrapper.classList.remove('uploading');
-            } catch(error) {
-                fileObject.status = 'failed';
-                previewWrapper.classList.remove('uploading');
-                previewWrapper.style.border = '2px solid var(--red-color)';
-                showToast('Image upload failed.');
-                console.error('Upload failed:', error);
-            }
+        async function uploadImage(file) {
+            const uniqueFileName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+            const getUrlResponse = await fetch("https://pxpic.com/getSignedUrl", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ folder: "uploads", fileName: uniqueFileName })
+            });
+            if (!getUrlResponse.ok) throw new Error('Failed to get signed URL.');
+            const data = await getUrlResponse.json();
+
+            const uploadResponse = await fetch(data.presignedUrl, {
+                method: "PUT", headers: { "Content-Type": file.type }, body: file
+            });
+            if (!uploadResponse.ok) throw new Error('File upload failed.');
+            return "https://files.fotoenhancer.com/uploads/" + uniqueFileName;
         }
 
         function resetFormUI() {
@@ -467,30 +447,32 @@ async function initializeAppWithConfig() {
         });
 
         async function renderBannedUsers() {
-            bannedUsersList.innerHTML = `<div class="spinner"></div>`;
+            bannedUsersList.innerHTML = `<p id="banned-list-loader">Loading</p>`;
             const snapshot = await get(ref(db, 'bannedUsers'));
             if (snapshot.exists()) {
                 const banned = snapshot.val();
                 let html = '';
                 Object.keys(banned).forEach(uid => {
-                    const username = allUsersCache[uid]?.username || 'Unknown User';
+                    const userProfile = allUsersCache[uid] || {};
+                    const username = userProfile.username || 'Unknown User';
                     html += `
                         <div class="banned-user-item">
-                            <span>${escapeHTML(username)}</span>
+                            <div class="banned-user-info">
+                                <img src="${getAvatarUrl(userProfile, username)}" class="banned-user-avatar">
+                                <span>${escapeHTML(username)}</span>
+                            </div>
                             <button class="unban-btn" data-uid="${uid}">Unban</button>
                         </div>`;
                 });
                 bannedUsersList.innerHTML = html;
             } else {
-                bannedUsersList.innerHTML = '<p>No users are currently banned.</p>';
+                bannedUsersList.innerHTML = '<p style="text-align:center; color:#888;">No users are currently banned.</p>';
             }
         }
         
         profileBtn.addEventListener('click', () => {
             modalPfpDisplay.src = getAvatarUrl(currentUserProfile);
-            fullPfpUrl = currentUserProfile.profilePictureUrl || '';
             updateUsernameInput.value = currentUserProfile.username;
-            updatePfpInput.value = displayTruncatedUrl(fullPfpUrl);
             
             if (currentUserProfile.role === 'admin' || currentUserProfile.role === 'superadmin') {
                 bannedUsersSection.style.display = 'block';
@@ -509,14 +491,23 @@ async function initializeAppWithConfig() {
             }
         });
 
-        updatePfpInput.addEventListener('focus', () => {
-            if(updatePfpInput.value !== fullPfpUrl) updatePfpInput.value = fullPfpUrl;
-        });
+        pfpUploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        updatePfpInput.addEventListener('blur', () => {
-            fullPfpUrl = updatePfpInput.value;
-            updatePfpInput.value = displayTruncatedUrl(fullPfpUrl);
-            saveProfileChanges();
+            uploadOverlay.style.display = 'flex';
+            try {
+                const newPfpUrl = await uploadImage(file);
+                fullPfpUrl = newPfpUrl;
+                modalPfpDisplay.src = newPfpUrl;
+                await saveProfileChanges();
+                showToast('Profile picture updated.');
+            } catch (error) {
+                showToast('Failed to upload profile picture.');
+                console.error(error);
+            } finally {
+                uploadOverlay.style.display = 'none';
+            }
         });
 
         logoutBtn.addEventListener('click', () => signOut(auth));
@@ -525,15 +516,29 @@ async function initializeAppWithConfig() {
             const newUsername = updateUsernameInput.value.trim();
             const newPfp = fullPfpUrl.trim();
             let hasChanges = false;
-            if (newUsername && newUsername !== currentUserProfile.username) hasChanges = true;
-            if (newPfp !== (currentUserProfile.profilePictureUrl || '')) hasChanges = true;
+
+            if (newUsername && newUsername !== currentUserProfile.username) {
+                updates[`users/${currentUser.uid}/username`] = newUsername;
+                hasChanges = true;
+            }
+            if (newPfp && newPfp !== (currentUserProfile.profilePictureUrl || '')) {
+                 updates[`users/${currentUser.uid}/profilePictureUrl`] = newPfp;
+                hasChanges = true;
+            }
 
             if (hasChanges) {
                 const updates = {};
-                updates[`users/${currentUser.uid}/username`] = newUsername;
-                updates[`users/${currentUser.uid}/profilePictureUrl`] = newPfp;
+                if (newUsername && newUsername !== currentUserProfile.username) {
+                    updates[`users/${currentUser.uid}/username`] = newUsername;
+                }
+                if (newPfp && newPfp !== (currentUserProfile.profilePictureUrl || '')) {
+                    updates[`users/${currentUser.uid}/profilePictureUrl`] = newPfp;
+                }
+
                 await update(ref(db), updates);
-                await updateProfile(currentUser, { displayName: newUsername });
+                if (newUsername && newUsername !== currentUserProfile.username) {
+                    await updateProfile(currentUser, { displayName: newUsername });
+                }
                 profileHasChanges = true;
                 showToast('Profile will update on next reload.');
             }
@@ -541,7 +546,6 @@ async function initializeAppWithConfig() {
 
         updateUsernameInput.addEventListener('blur', saveProfileChanges);
         updateUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
-        updatePfpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
         
         bannedUsersList.addEventListener('click', async (e) => {
             if (e.target.classList.contains('unban-btn')) {
@@ -585,6 +589,12 @@ async function initializeAppWithConfig() {
         document.addEventListener('click', e => {
             if (!e.target.closest('.message-menu')) {
                 document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
+            }
+            if (profileModal.classList.contains('visible') && !e.target.closest('.modal-content') && !e.target.closest('#profile-btn')) {
+                profileModal.classList.remove('visible');
+                if (profileHasChanges) {
+                    location.reload();
+                }
             }
         });
 

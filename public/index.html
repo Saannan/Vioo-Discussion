@@ -206,13 +206,18 @@
             position: relative;
         }
         .modal-overlay.visible .modal-content { transform: scale(1); }
-        .modal-content h2 { font-size: 1.4em; margin-bottom: 8px; }
-        .modal-content p { font-size: 0.95em; color: #a0a0a0; margin-bottom: 20px; }
-        .modal-content p strong { color: var(--primary-color); font-weight: 500; }
         .modal-close-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #888; font-size: 1.5em; cursor: pointer; transition: color 0.2s; }
         .modal-close-btn:hover { color: var(--text-color); }
         #profile-modal .modal-content { max-width: 500px; text-align: left; }
-        #modal-pfp-display { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 0 auto 20px auto; display: block; border: 2px solid var(--accent-color); }
+        #modal-pfp-wrapper { position: relative; width: 80px; height: 80px; margin: 0 auto 20px auto; }
+        #modal-pfp-display { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color); }
+        #pfp-upload-btn {
+            position: absolute; bottom: 0; right: 0;
+            background-color: var(--gold-color); color: var(--bg-color);
+            width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: 2px solid var(--bg-color);
+        }
         .profile-field { margin-bottom: 15px; }
         .profile-field label { display: block; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
         .profile-field input {
@@ -221,11 +226,26 @@
             font-family: var(--font-family); font-size: 1em;
         }
         #profile-modal hr { border: none; height: 1px; background-color: var(--accent-color); margin: 25px 0; }
-        #banned-users-section h3 { margin-bottom: 15px; }
-        #banned-users-list { max-height: 200px; overflow-y: auto; padding-right: 10px; }
-        .banned-user-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 5px; }
+        #banned-users-section h3 { margin-bottom: 15px; font-size: 1.2em; }
+        #banned-users-list { max-height: 180px; overflow-y: auto; padding-right: 5px; }
+        #banned-list-loader { color: #888; text-align: center; }
+        #banned-list-loader::after {
+            content: '.'; animation: dots 1.5s steps(3, end) infinite;
+            display: inline-block; width: 20px; text-align: left;
+        }
+        @keyframes dots { 0%, 20% { content: '.';} 40% { content: '..';} 60% { content: '...';} }
+        .banned-user-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-radius: 5px; }
         .banned-user-item:nth-child(odd) { background-color: var(--bg-color); }
+        .banned-user-info { display: flex; align-items: center; gap: 10px; }
+        .banned-user-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
         .unban-btn { background-color: var(--gold-color); color: var(--bg-color); border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.85em; font-weight: 700; }
+        #profile-modal #logout-btn {
+            width: 100%; background: none; border: 1px solid var(--red-color); color: var(--red-color);
+            border-radius: 5px; padding: 10px; margin-top: 20px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #profile-modal #logout-btn:hover { background-color: rgba(231, 76, 60, 0.1); }
         #status-modal .modal-content { padding: 30px; }
         #status-modal h2 { font-size: 1.5em; }
         #status-modal p { font-size: 1em; margin: 10px 0 20px 0; color: #b0b0b0; }
@@ -322,21 +342,23 @@
         <div class="modal-content">
             <button class="modal-close-btn">&times;</button>
             <h2>Profile Info</h2>
-            <img id="modal-pfp-display" src="">
+            <div id="modal-pfp-wrapper">
+                <img id="modal-pfp-display" src="">
+                <label for="pfp-upload-input" id="pfp-upload-btn">
+                    <i class="fas fa-camera"></i>
+                </label>
+                <input type="file" id="pfp-upload-input" accept="image/*" style="display: none;">
+            </div>
             <form id="profile-form">
                 <div class="profile-field">
                     <label for="update-username">Username</label>
                     <input type="text" id="update-username" required>
                 </div>
-                <div class="profile-field">
-                    <label for="update-pfp">Profile Picture URL</label>
-                    <input type="url" id="update-pfp">
-                </div>
             </form>
             <hr>
             <div id="banned-users-section" style="display: none;">
                 <h3>More Settings</h3>
-                <div id="banned-users-list"><div class="spinner"></div></div>
+                <div id="banned-users-list"></div>
             </div>
              <button id="logout-btn"><i class="fas fa-sign-out-alt fa-fw"></i> Logout</button>
         </div>
