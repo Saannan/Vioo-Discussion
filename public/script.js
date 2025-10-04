@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get, equalTo } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyD-JI0Lh4IzHYiD-RpzAJGQzOr6oxU4CwA",
@@ -37,11 +37,9 @@ const imagePreviewContainer = document.getElementById('image-preview-container')
 const imageViewer = document.getElementById('image-viewer');
 const imageViewerImg = imageViewer.querySelector('img');
 const uploadOverlay = document.getElementById('upload-overlay');
-const uploadStatusText = document.getElementById('upload-status-text');
 const statusModal = document.getElementById('status-modal');
-const statusModalTitle = document.getElementById('status-modal-title');
 const statusModalText = document.getElementById('status-modal-text');
-const statusModalOkBtn = document.getElementById('status-modal-ok-btn');
+const statusOkBtn = document.getElementById('status-ok-btn');
 
 let currentUser = null;
 let currentUserProfile = null;
@@ -113,11 +111,10 @@ function createMessageHTML(msg) {
     if(isCurrentUserAdmin) {
         menuOptions += `<button class="pin-btn"><i class="fas fa-thumbtack"></i> ${isPinned ? 'Unpin' : 'Pin'} Comment</button>`;
     }
-    if(isOwner) {
-        menuOptions += '<button class="delete-btn"><i class="fas fa-trash"></i> Delete</button>';
+    if(isOwner || isCurrentUserAdmin) {
+        menuOptions += `<button class="delete-btn"><i class="fas fa-trash"></i> Delete Comment</button>`;
     }
     if(canAdminAct) {
-        menuOptions += `<button class="admin-delete-btn"><i class="fas fa-trash-alt"></i> Delete Comment</button>`;
         menuOptions += `<button class="admin-ban-btn"><i class="fas fa-user-slash"></i> Ban User</button>`;
     }
 
@@ -256,50 +253,44 @@ function listenForRealtimeUpdates() {
     });
 }
 
-async function checkUserBanStatus(user) {
-    const banRef = ref(db, `bannedUsers/${user.uid}`);
-    const snapshot = await get(banRef);
+async function initializeApp(user) {
+    currentUser = user;
+    const userRef = ref(db, `users/${user.uid}`);
+    const snapshot = await get(userRef);
     if (snapshot.exists()) {
-        const banInfo = snapshot.val();
-        if (banInfo.bannedUntil > Date.now()) {
-            const expiryDate = new Date(banInfo.bannedUntil).toLocaleString();
-            statusModalTitle.textContent = 'Account Suspended';
-            statusModalText.textContent = `Your account is suspended until ${expiryDate}.`;
-            statusModalOkBtn.onclick = () => signOut(auth);
-            statusModal.classList.add('visible');
-            return true;
-        } else {
-            await remove(banRef);
-            statusModalTitle.textContent = 'Account Restored';
-            statusModalText.textContent = 'Your account has been restored. Please adhere to the community guidelines.';
-            statusModalOkBtn.onclick = () => statusModal.classList.remove('visible');
-            statusModal.classList.add('visible');
-        }
+        currentUserProfile = snapshot.val();
+    } else {
+        const newProfile = { role: 'user', username: user.displayName || `user${user.uid.substring(0, 5)}`, profilePictureUrl: '' };
+        await set(userRef, newProfile);
+        currentUserProfile = newProfile;
     }
-    return false;
+    headerAvatar.src = getAvatarUrl(currentUserProfile);
+    headerAvatar.onload = () => {
+        headerAvatarWrapper.classList.add('loaded');
+        headerAvatar.classList.add('loaded');
+    };
+    listenForRealtimeUpdates();
 }
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        currentUser = user;
-        const isBanned = await checkUserBanStatus(user);
-        if (isBanned) return;
-
-        const userRef = ref(db, `users/${user.uid}`);
-        const snapshot = await get(userRef);
-        if (snapshot.exists()) {
-            currentUserProfile = snapshot.val();
+        const banRef = ref(db, `bannedUsers/${user.uid}`);
+        const banSnapshot = await get(banRef);
+        if (banSnapshot.exists()) {
+            const banData = banSnapshot.val();
+            if (banData.bannedUntil > Date.now()) {
+                const expiryDate = new Date(banData.bannedUntil).toLocaleString();
+                statusModalText.textContent = `Your account is banned until ${expiryDate}.`;
+                statusModal.classList.add('visible');
+            } else {
+                statusModalText.textContent = 'Your account has been unbanned. Please follow the community guidelines.';
+                statusModal.classList.add('visible');
+                await remove(banRef);
+                initializeApp(user);
+            }
         } else {
-            const newProfile = { role: 'user', username: user.displayName || `user${user.uid.substring(0, 5)}`, profilePictureUrl: '' };
-            await set(userRef, newProfile);
-            currentUserProfile = newProfile;
+            initializeApp(user);
         }
-        headerAvatar.src = getAvatarUrl(currentUserProfile);
-        headerAvatar.onload = () => {
-            headerAvatarWrapper.classList.add('loaded');
-            headerAvatar.classList.add('loaded');
-        };
-        listenForRealtimeUpdates();
     } else {
         window.location.href = 'sign.html';
     }
@@ -336,7 +327,7 @@ function resetFormUI() {
     messageInput.placeholder = 'Join the discussion...';
     messageInput.value = '';
     messageInput.style.height = 'auto';
-    submitBtn.style.display = 'flex';
+    submitBtn.style.display = 'block';
     cancelReplyBtn.style.display = 'none';
     imagePreviewContainer.innerHTML = '';
     filesToUpload = [];
@@ -355,17 +346,11 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
     }
 
     submitBtn.disabled = true;
-
     const uploadedImageUrls = filesToUpload.filter(f => f.status === 'uploaded').map(f => f.url);
-
     const newMessageRef = push(ref(db, 'comments'));
-    const messageData = {
-        id: newMessageRef.key, userId: currentUser.uid, timestamp: serverTimestamp(),
-        parentId: replyState.parentId || null
-    };
+    const messageData = { id: newMessageRef.key, userId: currentUser.uid, timestamp: serverTimestamp(), parentId: replyState.parentId || null };
     if (message) messageData.message = message;
     if (uploadedImageUrls.length > 0) messageData.imageUrls = uploadedImageUrls;
-
     set(newMessageRef, messageData).catch(error => showToast("Failed to send message: " + error.message));
     
     if(replyState.parentId) {
@@ -384,46 +369,36 @@ chatMessagesContainer.addEventListener('click', (e) => {
     const messageId = thread.dataset.id;
     
     if (target.closest('.menu-btn')) {
-        const menuBtn = target.closest('.menu-btn');
-        const menuPopup = menuBtn.nextElementSibling;
-        
-        document.querySelectorAll('.menu-popup').forEach(p => {
-            if (p !== menuPopup) p.style.display = 'none';
-        });
-
-        menuPopup.style.display = menuPopup.style.display === 'block' ? 'none' : 'block';
-
-        if (menuPopup.style.display === 'block') {
-            const rect = menuPopup.getBoundingClientRect();
-            if (rect.bottom > window.innerHeight) {
-                menuPopup.classList.add('menu-popup-top');
-            } else {
-                menuPopup.classList.remove('menu-popup-top');
-            }
+        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
+        const popup = thread.querySelector('.menu-popup');
+        const rect = target.getBoundingClientRect();
+        if (window.innerHeight - rect.bottom < 150) {
+             popup.classList.add('popup-opens-up');
+        } else {
+             popup.classList.remove('popup-opens-up');
         }
+        popup.style.display = 'block';
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
         set(ref(db, 'pinnedComment'), isAlreadyPinned ? null : messageId);
-    } else if (target.matches('.delete-btn, .admin-delete-btn')) {
+    } else if (target.matches('.delete-btn')) {
         const idsToDelete = new Set();
         function findRepliesRecursive(pId) {
             idsToDelete.add(pId);
             Object.values(allMessagesCache).forEach(msg => { if (msg && msg.parentId === pId) findRepliesRecursive(msg.id); });
         }
         findRepliesRecursive(messageId);
-        const updates = {};
-        idsToDelete.forEach(id => { updates[`comments/${id}`] = null; expandedThreads.delete(id); });
-        if(idsToDelete.has(pinnedCommentId)) updates['pinnedComment'] = null;
-        update(ref(db), updates);
+        idsToDelete.forEach(id => { remove(ref(db, `comments/${id}`)); expandedThreads.delete(id); });
+        if(idsToDelete.has(pinnedCommentId)) remove(ref(db, 'pinnedComment'));
     } else if (target.matches('.admin-ban-btn')) {
-        banUsernameEl.textContent = thread.dataset.username;
         banModal.dataset.userId = thread.dataset.userId;
+        banUsernameEl.textContent = thread.dataset.username;
         banModal.classList.add('visible');
     } else if (target.matches('.reply-btn')) {
         replyState = { parentId: messageId };
         messageInput.placeholder = `Replying to @${thread.dataset.username}...`;
-        cancelReplyBtn.style.display = 'flex';
         submitBtn.style.display = 'none';
+        cancelReplyBtn.style.display = 'block';
         messageInput.focus();
     } else if (target.matches('.toggle-replies-btn')) {
         const mainWrapper = target.closest('.comment-thread-wrapper');
@@ -439,16 +414,16 @@ chatMessagesContainer.addEventListener('click', (e) => {
     }
 });
 
-cancelReplyBtn.addEventListener('click', resetFormUI);
+cancelReplyBtn.addEventListener('click', () => {
+    replyState = { parentId: null };
+    messageInput.placeholder = 'Join the discussion...';
+    submitBtn.style.display = 'block';
+    cancelReplyBtn.style.display = 'none';
+});
 
 messageInput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = `${this.scrollHeight}px`;
-    if (replyState.parentId) {
-        const hasText = this.value.trim().length > 0;
-        submitBtn.style.display = hasText ? 'flex' : 'none';
-        cancelReplyBtn.style.display = hasText ? 'none' : 'flex';
-    }
 });
 
 imageUploadInput.addEventListener('change', () => {
@@ -521,15 +496,14 @@ banModal.addEventListener('click', async (e) => {
             await set(ref(db, `bannedUsers/${userIdToBan}`), {
                 bannedBy: currentUser.uid, bannedUntil: banUntil, timestamp: serverTimestamp()
             });
-            const commentsSnapshot = await get(query(ref(db, 'comments'), orderByChild('userId').equalTo(userIdToBan)));
-            if (commentsSnapshot.exists()) {
+            const commentsQuery = query(ref(db, 'comments'), orderByChild('userId'), equalTo(userIdToBan));
+            const snapshot = await get(commentsQuery);
+            if (snapshot.exists()) {
                 const updates = {};
-                commentsSnapshot.forEach(child => {
-                    updates[`comments/${child.key}`] = null;
-                });
-                await update(ref(db), updates);
+                snapshot.forEach(child => { updates[child.key] = null; });
+                await update(ref(db, 'comments'), updates);
             }
-            showToast('User has been banned and their comments removed.');
+            showToast('User has been banned and their comments were deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
     }
 });
@@ -539,6 +513,8 @@ imageViewer.addEventListener('click', (e) => {
         imageViewer.classList.remove('visible');
     }
 });
+
+statusOkBtn.addEventListener('click', () => statusModal.classList.remove('visible'));
 
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
