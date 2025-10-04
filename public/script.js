@@ -109,7 +109,7 @@ function createMessageHTML(msg) {
     const adminClass = isTargetAdmin ? 'admin-user' : '';
     const adminBadge = isTargetAdmin ? '<i class="fas fa-crown admin-badge"></i>' : '';
     const isPinned = msg.id === pinnedCommentId;
-    const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : '';
+    const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i>&nbsp;&nbsp;Pinned</span>' : '';
 
     let mentionHTML = '';
     const parentMessage = allMessagesCache[parentId];
@@ -121,7 +121,7 @@ function createMessageHTML(msg) {
     const escapedUsername = escapeHTML(username);
 
     let menuOptions = '';
-    if(isCurrentUserAdmin) {
+    if(isCurrentUserAdmin && !msg.parentId) {
         menuOptions += `<button class="pin-btn"><i class="fas fa-thumbtack"></i> ${isPinned ? 'Unpin' : 'Pin'} Comment</button>`;
     }
     if(isOwner) {
@@ -165,7 +165,6 @@ function buildAndRenderHTML() {
     if (!usersLoaded || !messagesLoaded) return;
     
     const messages = Object.values(allMessagesCache);
-
     if (messages.length === 0) {
         noCommentsPlaceholder.style.display = 'block';
         chatMessagesContainer.style.display = 'none';
