@@ -53,7 +53,7 @@ async function initializeAppWithConfig() {
         let pinnedCommentId = null;
         let profileHasChanges = false;
         let filesToUpload = [];
-        let fullPfpUrl = '';
+        let isUserBanned = false;
 
         function showToast(message) {
             toastNotification.textContent = message;
@@ -231,25 +231,36 @@ async function initializeAppWithConfig() {
             });
         }
 
-        async function checkBanStatus(user) {
+        function listenForBanStatus(user) {
             const banRef = ref(db, `bannedUsers/${user.uid}`);
-            const banSnapshot = await get(banRef);
-
-            if (banSnapshot.exists()) {
-                const banData = banSnapshot.val();
-                if (banData.bannedUntil > Date.now()) {
-                    const expiryDate = new Date(banData.bannedUntil).toLocaleString();
-                    statusModalTitle.textContent = 'Account Suspended';
-                    statusModalText.textContent = `Your account is suspended until ${expiryDate}. You cannot post or comment.`;
-                    statusModal.classList.add('visible');
-                    chatFormWrapper.style.display = 'none';
+            onValue(banRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const banData = snapshot.val();
+                    if (banData.bannedUntil > Date.now()) {
+                        isUserBanned = true;
+                        const expiryDate = new Date(banData.bannedUntil).toLocaleString();
+                        statusModalTitle.textContent = 'Account Suspended';
+                        statusModalText.textContent = `Your account is suspended until ${expiryDate}. You cannot post or comment.`;
+                        statusModal.classList.add('visible');
+                        chatFormWrapper.style.display = 'none';
+                    } else {
+                        isUserBanned = false;
+                        statusModalTitle.textContent = 'Suspension Lifted';
+                        statusModalText.textContent = 'Your account suspension has ended. Please follow the community guidelines.';
+                        statusModal.classList.add('visible');
+                        chatFormWrapper.style.display = 'block';
+                        remove(banRef);
+                    }
                 } else {
-                    statusModalTitle.textContent = 'Suspension Lifted';
-                    statusModalText.textContent = 'Your account suspension has ended. Please follow the community guidelines.';
-                    statusModal.classList.add('visible');
-                    await remove(banRef);
+                    if(isUserBanned) {
+                         statusModalTitle.textContent = 'Suspension Lifted';
+                        statusModalText.textContent = 'Your account is no longer suspended. Please follow the community guidelines.';
+                        statusModal.classList.add('visible');
+                    }
+                    isUserBanned = false;
+                    chatFormWrapper.style.display = 'block';
                 }
-            }
+            });
         }
 
         function listenForRealtimeUpdates() {
@@ -290,7 +301,7 @@ async function initializeAppWithConfig() {
                     headerAvatarWrapper.classList.add('loaded');
                     headerAvatar.classList.add('loaded');
                 };
-                await checkBanStatus(user);
+                listenForBanStatus(user);
                 listenForRealtimeUpdates();
             } else {
                 window.location.href = 'sign.html';
@@ -421,31 +432,37 @@ async function initializeAppWithConfig() {
             }
         });
 
-        imageUploadInput.addEventListener('change', () => {
-            if (imageUploadInput.files.length + filesToUpload.length > 2) {
-                showToast('You can only upload a maximum of 2 images.');
-                return;
-            }
-            for (const file of imageUploadInput.files) {
-                const fileObject = { file, status: 'uploading', url: null };
-                filesToUpload.push(fileObject);
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const previewWrapper = document.createElement('div');
-                    previewWrapper.className = 'img-preview uploading';
-                    previewWrapper.innerHTML = `<img src="${e.target.result}"><button class="remove-img-btn">&times;</button>`;
-                    previewWrapper.querySelector('.remove-img-btn').onclick = () => {
-                        const index = filesToUpload.indexOf(fileObject);
-                        if (index > -1) filesToUpload.splice(index, 1);
-                        previewWrapper.remove();
-                    };
-                    imagePreviewContainer.appendChild(previewWrapper);
-                    uploadFileAndStoreUrl(fileObject, previewWrapper);
+        imageUploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const fileObject = { file, status: 'uploading', url: null };
+            filesToUpload.push(fileObject);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewWrapper = document.createElement('div');
+                previewWrapper.className = 'img-preview uploading';
+                previewWrapper.innerHTML = `<img src="${e.target.result}"><button class="remove-img-btn">&times;</button>`;
+                previewWrapper.querySelector('.remove-img-btn').onclick = () => {
+                    const index = filesToUpload.indexOf(fileObject);
+                    if (index > -1) filesToUpload.splice(index, 1);
+                    previewWrapper.remove();
                 };
-                reader.readAsDataURL(file);
-            }
+                imagePreviewContainer.appendChild(previewWrapper);
+                try {
+                    const newUrl = await uploadImage(file);
+                    fileObject.status = 'uploaded';
+                    fileObject.url = newUrl;
+                    previewWrapper.classList.remove('uploading');
+                } catch (error) {
+                    fileObject.status = 'failed';
+                    previewWrapper.classList.remove('uploading');
+                    previewWrapper.style.border = '2px solid var(--red-color)';
+                    showToast('Image upload failed.');
+                }
+            };
+            reader.readAsDataURL(file);
         });
-
+        
         async function renderBannedUsers() {
             bannedUsersList.innerHTML = `<p id="banned-list-loader">Loading</p>`;
             const snapshot = await get(ref(db, 'bannedUsers'));
@@ -498,10 +515,8 @@ async function initializeAppWithConfig() {
             uploadOverlay.style.display = 'flex';
             try {
                 const newPfpUrl = await uploadImage(file);
-                fullPfpUrl = newPfpUrl;
+                await saveNewPfp(newPfpUrl);
                 modalPfpDisplay.src = newPfpUrl;
-                await saveProfileChanges();
-                showToast('Profile picture updated.');
             } catch (error) {
                 showToast('Failed to upload profile picture.');
                 console.error(error);
@@ -512,39 +527,27 @@ async function initializeAppWithConfig() {
 
         logoutBtn.addEventListener('click', () => signOut(auth));
 
-        async function saveProfileChanges() {
-            const newUsername = updateUsernameInput.value.trim();
-            const newPfp = fullPfpUrl.trim();
-            let hasChanges = false;
-
-            if (newUsername && newUsername !== currentUserProfile.username) {
-                updates[`users/${currentUser.uid}/username`] = newUsername;
-                hasChanges = true;
-            }
-            if (newPfp && newPfp !== (currentUserProfile.profilePictureUrl || '')) {
-                 updates[`users/${currentUser.uid}/profilePictureUrl`] = newPfp;
-                hasChanges = true;
-            }
-
-            if (hasChanges) {
-                const updates = {};
-                if (newUsername && newUsername !== currentUserProfile.username) {
-                    updates[`users/${currentUser.uid}/username`] = newUsername;
-                }
-                if (newPfp && newPfp !== (currentUserProfile.profilePictureUrl || '')) {
-                    updates[`users/${currentUser.uid}/profilePictureUrl`] = newPfp;
-                }
-
+        async function saveNewPfp(newPfpUrl) {
+            if (newPfpUrl && newPfpUrl !== (currentUserProfile.profilePictureUrl || '')) {
+                const updates = { [`users/${currentUser.uid}/profilePictureUrl`]: newPfpUrl };
                 await update(ref(db), updates);
-                if (newUsername && newUsername !== currentUserProfile.username) {
-                    await updateProfile(currentUser, { displayName: newUsername });
-                }
                 profileHasChanges = true;
-                showToast('Profile will update on next reload.');
+                showToast('Profile picture will update on next reload.');
+            }
+        }
+        
+        async function saveNewUsername() {
+            const newUsername = updateUsernameInput.value.trim();
+            if (newUsername && newUsername !== currentUserProfile.username) {
+                const updates = { [`users/${currentUser.uid}/username`]: newUsername };
+                await update(ref(db), updates);
+                await updateProfile(currentUser, { displayName: newUsername });
+                profileHasChanges = true;
+                showToast('Username will update on next reload.');
             }
         }
 
-        updateUsernameInput.addEventListener('blur', saveProfileChanges);
+        updateUsernameInput.addEventListener('blur', saveNewUsername);
         updateUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
         
         bannedUsersList.addEventListener('click', async (e) => {
