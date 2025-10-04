@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get, equalTo } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyD-JI0Lh4IzHYiD-RpzAJGQzOr6oxU4CwA",
@@ -37,10 +37,11 @@ const imagePreviewContainer = document.getElementById('image-preview-container')
 const imageViewer = document.getElementById('image-viewer');
 const imageViewerImg = imageViewer.querySelector('img');
 const uploadOverlay = document.getElementById('upload-overlay');
-const uploadStatusText = document.getElementById('upload-status-text');
-const banStatusModal = document.getElementById('ban-status-modal');
-const banStatusText = document.getElementById('ban-status-text');
-const banStatusOkBtn = document.getElementById('ban-status-ok-btn');
+const chatFormWrapper = document.getElementById('chat-form-wrapper');
+const statusModal = document.getElementById('status-modal');
+const statusModalTitle = document.getElementById('status-modal-title');
+const statusModalText = document.getElementById('status-modal-text');
+const statusModalOk = document.getElementById('status-modal-ok');
 
 let currentUser = null;
 let currentUserProfile = null;
@@ -124,7 +125,7 @@ function createMessageHTML(msg) {
     if (msg.message) {
         bodyHTML += `<p class="message-text">${escapeHTML(msg.message)}</p>`;
     }
-    if (msg.imageUrls && Array.isArray(msg.imageUrls)) {
+    if (msg.imageUrls && msg.imageUrls.length > 0) {
         bodyHTML += '<div class="comment-images">';
         msg.imageUrls.forEach(url => {
             bodyHTML += `<img src="${url}" class="comment-image">`;
@@ -236,18 +237,20 @@ function buildAndRenderHTML() {
 
 async function checkBanStatus(user) {
     const banRef = ref(db, `bannedUsers/${user.uid}`);
-    const snapshot = await get(banRef);
+    const banSnapshot = await get(banRef);
 
-    if (snapshot.exists()) {
-        const banData = snapshot.val();
+    if (banSnapshot.exists()) {
+        const banData = banSnapshot.val();
         if (banData.bannedUntil > Date.now()) {
             const expiryDate = new Date(banData.bannedUntil).toLocaleString();
-            banStatusText.textContent = `Your account is currently banned. Reason: Unauthorized access. Expires: ${expiryDate === '1/1/2286, 7:59:59 AM' ? 'Permanent' : expiryDate}.`;
-            banStatusModal.classList.add('visible');
-            document.getElementById('chat-form').style.display = 'none';
+            statusModalTitle.textContent = 'Account Suspended';
+            statusModalText.textContent = `Your account is suspended until ${expiryDate}. You cannot post or comment.`;
+            statusModal.classList.add('visible');
+            chatFormWrapper.style.display = 'none';
         } else {
-            banStatusText.textContent = 'Your account has been unbanned. Please follow the community guidelines.';
-            banStatusModal.classList.add('visible');
+            statusModalTitle.textContent = 'Suspension Lifted';
+            statusModalText.textContent = 'Your account suspension has ended. Please follow the community guidelines.';
+            statusModal.classList.add('visible');
             await remove(banRef);
         }
     }
@@ -348,7 +351,6 @@ document.getElementById('chat-form').addEventListener('submit', async (e) => {
     }
 
     submitBtn.disabled = true;
-
     const uploadedImageUrls = filesToUpload.filter(f => f.status === 'uploaded').map(f => f.url);
 
     const newMessageRef = push(ref(db, 'comments'));
@@ -376,16 +378,20 @@ chatMessagesContainer.addEventListener('click', (e) => {
     if (!thread) return;
     const messageId = thread.dataset.id;
     
-    if (target.closest('.menu-btn')) {
+    const menuBtn = target.closest('.menu-btn');
+    if (menuBtn) {
         document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
         const popup = thread.querySelector('.menu-popup');
-        const btnRect = target.closest('.menu-btn').getBoundingClientRect();
-        if (window.innerHeight - btnRect.bottom < 150) {
-            popup.classList.add('popup-opens-up');
-        } else {
-            popup.classList.remove('popup-opens-up');
-        }
         popup.style.display = 'block';
+
+        const rect = popup.getBoundingClientRect();
+        if (rect.bottom > window.innerHeight) {
+            popup.style.top = 'auto';
+            popup.style.bottom = '100%';
+        } else {
+            popup.style.top = '25px';
+            popup.style.bottom = 'auto';
+        }
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
         set(ref(db, 'pinnedComment'), isAlreadyPinned ? null : messageId);
@@ -399,8 +405,8 @@ chatMessagesContainer.addEventListener('click', (e) => {
         idsToDelete.forEach(id => { remove(ref(db, `comments/${id}`)); expandedThreads.delete(id); });
         if(idsToDelete.has(pinnedCommentId)) remove(ref(db, 'pinnedComment'));
     } else if (target.matches('.admin-ban-btn')) {
-        banModal.dataset.userId = thread.dataset.userId;
         banUsernameEl.textContent = thread.dataset.username;
+        banModal.dataset.userId = thread.dataset.userId;
         banModal.classList.add('visible');
     } else if (target.matches('.reply-btn')) {
         replyState = { parentId: messageId };
@@ -422,14 +428,20 @@ chatMessagesContainer.addEventListener('click', (e) => {
     }
 });
 
-cancelReplyBtn.addEventListener('click', resetFormUI);
+cancelReplyBtn.addEventListener('click', () => {
+    replyState = { parentId: null };
+    messageInput.placeholder = 'Join the discussion...';
+    cancelReplyBtn.style.display = 'none';
+    submitBtn.style.display = 'flex';
+});
 
 messageInput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = `${this.scrollHeight}px`;
     if (replyState.parentId) {
-        cancelReplyBtn.style.display = 'flex';
-        submitBtn.style.display = 'none';
+        const hasText = this.value.trim().length > 0;
+        submitBtn.style.display = hasText ? 'flex' : 'none';
+        cancelReplyBtn.style.display = hasText ? 'none' : 'flex';
     }
 });
 
@@ -498,27 +510,20 @@ banModal.addEventListener('click', async (e) => {
     if (e.target.matches('.ban-options button')) {
         const userIdToBan = banModal.dataset.userId;
         const durationHours = parseFloat(e.target.dataset.hours);
-        const banUntil = durationHours === 0 ? new Date('2286-01-01').getTime() : Date.now() + durationHours * 3600000;
+        const banUntil = durationHours === 0 ? 9999999999999 : Date.now() + durationHours * 3600000;
         try {
             await set(ref(db, `bannedUsers/${userIdToBan}`), {
                 bannedBy: currentUser.uid, bannedUntil: banUntil, timestamp: serverTimestamp()
             });
-            const commentsQuery = query(ref(db, 'comments'), orderByChild('userId'), equalTo(userIdToBan));
-            const snapshot = await get(commentsQuery);
-            if(snapshot.exists()){
+            const commentsSnapshot = await get(query(ref(db, 'comments'), orderByChild('userId').equalTo(userIdToBan)));
+            if (commentsSnapshot.exists()) {
                 const updates = {};
-                snapshot.forEach(child => {
-                    updates[child.key] = null;
-                });
+                commentsSnapshot.forEach(child => { updates[child.key] = null; });
                 await update(ref(db, 'comments'), updates);
             }
-            showToast('User has been banned and their comments removed.');
+            showToast('User has been banned and their comments deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
     }
-});
-
-banStatusOkBtn.addEventListener('click', () => {
-    banStatusModal.classList.remove('visible');
 });
 
 imageViewer.addEventListener('click', (e) => {
@@ -527,9 +532,15 @@ imageViewer.addEventListener('click', (e) => {
     }
 });
 
+statusModalOk.addEventListener('click', () => statusModal.classList.remove('visible'));
+
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
-        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.menu-popup').forEach(p => {
+            p.style.display = 'none';
+            p.style.top = '25px';
+            p.style.bottom = 'auto';
+        });
     }
     if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
         if (profilePopup.style.display === 'block') {

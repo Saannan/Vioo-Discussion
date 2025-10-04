@@ -107,7 +107,7 @@
         }
         #chat-form-wrapper { flex-shrink: 0; background-color: var(--bg-color); padding: 10px 0; border-top: 1px solid var(--accent-color); }
         #chat-form { display: flex; flex-direction: column; gap: 10px; }
-        .main-form-row { display: flex; align-items: flex-start; gap: 10px; }
+        .main-form-row { display: flex; align-items: flex-end; gap: 10px; }
         .form-content {
             width: 100%; display: flex; align-items: center; background-color: var(--secondary-color);
             border-radius: 20px; padding: 5px 5px 5px 15px;
@@ -132,18 +132,19 @@
             max-height: 100px; overflow-y: auto; line-height: 1.4; padding: 8px 0;
         }
         #message:focus { outline: none; }
-        #image-upload-btn {
-            background: none; border: none; color: var(--gold-color); font-size: 1.3em;
-            cursor: pointer; padding: 8px; margin: 0 4px; transition: opacity 0.2s ease;
+        .form-actions-inner { display: flex; align-items: center; justify-content: center; }
+        .form-actions-inner #image-upload-btn {
+            background: none; border: none; color: var(--gold-color); font-size: 1.2em;
+            cursor: pointer; padding: 8px; margin-right: 4px; transition: opacity 0.2s ease;
         }
-        #image-upload-btn:hover { opacity: 0.8; }
-        #submit-btn, #cancel-reply-btn {
+        .form-actions-inner #image-upload-btn:hover { opacity: 0.8; }
+        #submit-btn {
             background-color: var(--gold-color); color: var(--bg-color);
             border: none; cursor: pointer; width: 40px; height: 40px;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             font-size: 1.1em; flex-shrink: 0; transition: all 0.3s ease;
         }
-        #cancel-reply-btn { background-color: var(--accent-color); color: var(--text-color); font-size: 1.3em; }
+        #cancel-reply-btn { background-color: var(--accent-color); color: var(--text-color); font-size: 1.3em; width: 40px; height: 40px; border-radius: 50%; display: none; align-items: center; justify-content: center; border:none; cursor: pointer; }
         #chat-messages { display: flex; flex-direction: column; }
         .comment-thread-wrapper { position: relative; }
         .pinned-comment-wrapper {
@@ -198,7 +199,6 @@
             background-color: var(--secondary-color); border: 1px solid var(--accent-color);
             border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10; overflow: hidden; min-width: 150px;
         }
-        .menu-popup.popup-opens-up { top: auto; bottom: 100%; margin-bottom: 5px; }
         .menu-popup button {
             display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none;
             color: var(--text-color); padding: 9px 15px; text-align: left; cursor: pointer;
@@ -220,12 +220,15 @@
         .modal-content {
             background-color: var(--secondary-color); padding: 25px; border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5); max-width: 400px; width: 90%;
-            transform: scale(0.95); transition: all 0.3s ease; text-align: center;
+            text-align: center; transform: scale(0.95); transition: all 0.3s ease;
         }
-        #ban-status-modal .modal-content p { color: var(--text-color); margin-bottom: 20px; font-size: 1em; }
-        #ban-status-ok-btn {
-            background-color: var(--gold-color); color: var(--bg-color); border: none; border-radius: 5px;
-            padding: 10px 30px; cursor: pointer; font-family: var(--font-family); font-weight: 700;
+        #status-modal .modal-content { padding: 30px; }
+        #status-modal h2 { font-size: 1.5em; }
+        #status-modal p { font-size: 1em; margin: 10px 0 20px 0; color: #b0b0b0; }
+        #status-modal button {
+            background-color: var(--gold-color); color: var(--bg-color); border: none;
+            padding: 10px 30px; border-radius: 5px; cursor: pointer; font-family: var(--font-family);
+            font-weight: 700; font-size: 1em;
         }
         .modal-overlay.visible .modal-content { transform: scale(1); }
         .modal-content h2 { font-size: 1.4em; margin-bottom: 8px; }
@@ -255,18 +258,21 @@
         #toast-notification.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
 
         @media (max-width: 600px) {
-            body { font-size: calc(0.9em * 0.6); }
-            .logo { font-size: calc(1.6em * 0.6); }
-            #profile-btn, #header-avatar-wrapper, #header-avatar { width: 30px; height: 30px; }
-            .comment-thread .avatar { width: 30px; height: 30px; }
+            body { font-size: 0.75em; }
+            .container { padding: 0 10px; }
+            .logo { font-size: 1.4em; }
+            #header-avatar-wrapper, #profile-btn, #header-avatar { width: 32px; height: 32px; }
             .comment-thread { gap: 10px; }
-            .replies-container { padding-left: 40px; }
-            .comment-thread-wrapper.is-expanded::before { left: 15px; }
-            .form-content { padding: 3px 3px 3px 12px; }
-            #submit-btn, #cancel-reply-btn { width: 30px; height: 30px; font-size: 0.9em; }
-            #image-upload-btn { font-size: 1.2em; padding: 6px 3px; }
-            .main-form-row { gap: 5px; }
-            #image-preview-container { margin-left: 0; }
+            .comment-thread .avatar { width: 32px; height: 32px; }
+            .replies-container { padding-left: 42px; }
+            #chat-form-wrapper { padding: 8px 0; }
+            .main-form-row { gap: 8px; }
+            .form-content { padding: 2px 2px 2px 12px; }
+            #submit-btn { width: 36px; height: 36px; font-size: 1em; }
+            .form-actions-inner #image-upload-btn { font-size: 1em; padding: 6px; }
+            #image-preview-container { margin-left: 10px; }
+            .img-preview { width: 45px; height: 45px; }
+            .comment-images img { max-width: 90px; max-height: 90px; }
         }
     </style>
 </head>
@@ -308,20 +314,22 @@
                 <div class="main-form-row">
                     <div class="form-content">
                         <textarea id="message" placeholder="Join the discussion..." required rows="1"></textarea>
-                        <label for="image-upload-input" id="image-upload-btn" title="Add images">
-                            <i class="fas fa-image"></i>
-                        </label>
-                        <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
+                        <div class="form-actions-inner">
+                             <label for="image-upload-input" id="image-upload-btn" title="Add images">
+                                <i class="fas fa-image"></i>
+                            </label>
+                        </div>
                     </div>
+                    <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
                     <button id="submit-btn" type="submit"><i class="fas fa-paper-plane"></i></button>
-                    <button id="cancel-reply-btn" type="button" style="display: none;">&times;</button>
+                    <button id="cancel-reply-btn" type="button">&times;</button>
                 </div>
             </form>
         </div>
     </div>
     
     <div id="ban-modal" class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content" style="text-align: left;">
             <button class="modal-close-btn">&times;</button>
             <h2>Ban User</h2>
             <p>Select ban duration for <strong id="ban-username"></strong>.</p>
@@ -334,11 +342,12 @@
             </div>
         </div>
     </div>
-    
-    <div id="ban-status-modal" class="modal-overlay">
+
+    <div id="status-modal" class="modal-overlay">
         <div class="modal-content">
-            <p id="ban-status-text"></p>
-            <button id="ban-status-ok-btn">OK</button>
+            <h2 id="status-modal-title"></h2>
+            <p id="status-modal-text"></p>
+            <button id="status-modal-ok">OK</button>
         </div>
     </div>
 
