@@ -28,13 +28,13 @@ async function initializeAppWithConfig() {
         const imagePreviewContainer = document.getElementById('image-preview-container');
         const imageViewer = document.getElementById('image-viewer');
         const imageViewerImg = imageViewer.querySelector('img');
-        const uploadOverlay = document.getElementById('upload-overlay');
         const chatFormWrapper = document.getElementById('chat-form-wrapper');
         const statusModal = document.getElementById('status-modal');
         const statusModalTitle = document.getElementById('status-modal-title');
         const statusModalText = document.getElementById('status-modal-text');
         const statusModalOk = document.getElementById('status-modal-ok');
         const profileModal = document.getElementById('profile-modal');
+        const modalPfpWrapper = document.getElementById('modal-pfp-wrapper');
         const modalPfpDisplay = document.getElementById('modal-pfp-display');
         const updateUsernameInput = document.getElementById('update-username');
         const pfpUploadInput = document.getElementById('pfp-upload-input');
@@ -59,7 +59,7 @@ async function initializeAppWithConfig() {
         function showToast(message) {
             toastNotification.textContent = message;
             toastNotification.classList.add('show');
-            setTimeout(() => { toastNotification.classList.remove('show'); }, 3000);
+            setTimeout(() => { toastNotification.classList.remove('show'); }, 5000);
         }
 
         function getAvatarUrl(userProfile, fallbackName = 'U') {
@@ -97,7 +97,7 @@ async function initializeAppWithConfig() {
             const adminClass = isTargetAdmin ? 'admin-user' : '';
             const adminBadge = isTargetAdmin ? '<i class="fas fa-crown admin-badge"></i>' : '';
             const isPinned = msg.id === pinnedCommentId;
-            const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : '';
+            const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i>&nbsp;&nbsp;Pinned</span>' : '';
 
             let mentionHTML = '';
             const parentMessage = allMessagesCache[parentId];
@@ -461,7 +461,11 @@ async function initializeAppWithConfig() {
 
         async function renderBannedUsers() {
             bannedUsersList.innerHTML = `<p id="banned-list-loader">Loading</p>`;
-            const snapshot = await get(ref(db, 'bannedUsers'));
+            const timerPromise = new Promise(resolve => setTimeout(resolve, 5000));
+            const dataPromise = get(ref(db, 'bannedUsers'));
+
+            const [_, snapshot] = await Promise.all([timerPromise, dataPromise]);
+
             if (snapshot.exists()) {
                 const banned = snapshot.val();
                 let html = '';
@@ -508,7 +512,7 @@ async function initializeAppWithConfig() {
             const file = e.target.files[0];
             if (!file) return;
 
-            uploadOverlay.style.display = 'flex';
+            modalPfpWrapper.classList.add('uploading');
             try {
                 const newPfpUrl = await uploadImage(file);
                 fullPfpUrl = newPfpUrl;
@@ -518,7 +522,7 @@ async function initializeAppWithConfig() {
                 showToast('Failed to upload profile picture.');
                 console.error(error);
             } finally {
-                uploadOverlay.style.display = 'none';
+                modalPfpWrapper.classList.remove('uploading');
             }
         });
 
@@ -595,7 +599,6 @@ async function initializeAppWithConfig() {
         });
 
         statusModalOk.addEventListener('click', () => statusModal.classList.remove('visible'));
-
         document.addEventListener('click', e => {
             if (!e.target.closest('.message-menu')) {
                 document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
