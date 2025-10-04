@@ -54,6 +54,7 @@ let messagesLoaded = false;
 let pinnedCommentId = null;
 let profileHasChanges = false;
 let filesToUpload = [];
+let fullPfpUrl = '';
 
 function showToast(message) {
     toastNotification.textContent = message;
@@ -82,6 +83,16 @@ function formatTimestamp(ts) {
 
 function escapeHTML(str) {
     return str ? str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])) : '';
+}
+
+function displayTruncatedUrl(url) {
+    if (!url) return '';
+    try {
+        const urlObj = new URL(url);
+        return `${urlObj.protocol}//${urlObj.hostname}/`;
+    } catch (e) {
+        return url.substring(0, url.lastIndexOf('/') + 1);
+    }
 }
 
 function createMessageHTML(msg) {
@@ -133,11 +144,6 @@ function createMessageHTML(msg) {
         bodyHTML += '</div>';
     }
 
-    const hasLiked = msg.likes && msg.likes[currentUser?.uid];
-    const likeCount = Object.keys(msg.likes || {}).length;
-    const likeBtnClass = hasLiked ? 'like-btn liked' : 'like-btn';
-    const likeIconClass = hasLiked ? 'fas fa-heart' : 'far fa-heart';
-
     return `
         <div class="comment-thread" data-id="${id}" data-username="${escapedUsername}" data-user-id="${userId}">
             <img class="avatar" src="${getAvatarUrl(profile, username)}" alt="${escapedUsername}">
@@ -149,12 +155,6 @@ function createMessageHTML(msg) {
                 <div class="comment-footer">
                     <span class="timestamp">${formatTimestamp(timestamp)}</span>
                     <button class="action-btn reply-btn">Reply</button>
-                    <div class="like-container">
-                        <button class="${likeBtnClass}">
-                            <i class="${likeIconClass}"></i>
-                        </button>
-                        <span class="like-count">${likeCount > 0 ? likeCount : ''}</span>
-                    </div>
                 </div>
                 ${menuOptions ? `<div class="message-menu"><button class="menu-btn"><i class="fas fa-ellipsis-v"></i></button><div class="menu-popup">${menuOptions}</div></div>` : ''}
             </div>
@@ -280,7 +280,7 @@ function listenForRealtimeUpdates() {
         buildAndRenderHTML();
     });
 
-    const messagesQuery = query(ref(db, 'comments'));
+    const messagesQuery = query(ref(db, 'comments'), orderByChild('timestamp'));
     onValue(messagesQuery, (snapshot) => {
         allMessagesCache = snapshot.val() || {};
         messagesLoaded = true;
@@ -403,10 +403,8 @@ chatMessagesContainer.addEventListener('click', (e) => {
             Object.values(allMessagesCache).forEach(msg => { if (msg && msg.parentId === pId) findRepliesRecursive(msg.id); });
         }
         findRepliesRecursive(messageId);
-        const updates = {};
-        idsToDelete.forEach(id => { updates[`/comments/${id}`] = null; });
-        if(idsToDelete.has(pinnedCommentId)) updates['/pinnedComment'] = null;
-        update(ref(db), updates);
+        idsToDelete.forEach(id => { remove(ref(db, `comments/${id}`)); expandedThreads.delete(id); });
+        if(idsToDelete.has(pinnedCommentId)) remove(ref(db, 'pinnedComment'));
     } else if (target.matches('.admin-ban-btn')) {
         banUsernameEl.textContent = thread.dataset.username;
         banModal.dataset.userId = thread.dataset.userId;
@@ -417,15 +415,6 @@ chatMessagesContainer.addEventListener('click', (e) => {
         cancelReplyBtn.style.display = 'flex';
         submitBtn.style.display = 'none';
         messageInput.focus();
-    } else if (target.closest('.like-btn')) {
-        const likeRef = ref(db, `comments/${messageId}/likes/${currentUser.uid}`);
-        get(likeRef).then(snapshot => {
-            if (snapshot.exists()) {
-                remove(likeRef);
-            } else {
-                set(likeRef, true);
-            }
-        });
     } else if (target.matches('.toggle-replies-btn')) {
         const mainWrapper = target.closest('.comment-thread-wrapper');
         const mainId = mainWrapper.dataset.mainId;
@@ -487,17 +476,28 @@ profileBtn.addEventListener('click', () => {
     if (isPopupVisible) {
         if (profileHasChanges) { location.reload(); } else { profilePopup.style.display = 'none'; }
     } else {
+        fullPfpUrl = currentUserProfile.profilePictureUrl || '';
         updateUsernameInput.value = currentUserProfile.username;
-        updatePfpInput.value = currentUserProfile.profilePictureUrl || '';
+        updatePfpInput.value = displayTruncatedUrl(fullPfpUrl);
         profilePopup.style.display = 'block';
     }
+});
+
+updatePfpInput.addEventListener('focus', () => {
+    if(updatePfpInput.value !== fullPfpUrl) updatePfpInput.value = fullPfpUrl;
+});
+
+updatePfpInput.addEventListener('blur', () => {
+    fullPfpUrl = updatePfpInput.value;
+    updatePfpInput.value = displayTruncatedUrl(fullPfpUrl);
+    saveProfileChanges();
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
 
 async function saveProfileChanges() {
     const newUsername = updateUsernameInput.value.trim();
-    const newPfp = updatePfpInput.value.trim();
+    const newPfp = fullPfpUrl.trim();
     let hasChanges = false;
     if (newUsername && newUsername !== currentUserProfile.username) hasChanges = true;
     if (newPfp !== (currentUserProfile.profilePictureUrl || '')) hasChanges = true;
@@ -512,11 +512,6 @@ async function saveProfileChanges() {
     }
 }
 
-updateUsernameInput.addEventListener('blur', saveProfileChanges);
-updatePfpInput.addEventListener('blur', saveProfileChanges);
-updateUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
-updatePfpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
-
 banModal.addEventListener('click', async (e) => {
     if (e.target.matches('.modal-close-btn')) { banModal.classList.remove('visible'); return; }
     if (e.target.matches('.ban-options button')) {
@@ -530,8 +525,8 @@ banModal.addEventListener('click', async (e) => {
             const commentsSnapshot = await get(query(ref(db, 'comments'), orderByChild('userId').equalTo(userIdToBan)));
             if (commentsSnapshot.exists()) {
                 const updates = {};
-                commentsSnapshot.forEach(child => { updates[`/comments/${child.key}`] = null; });
-                await update(ref(db), updates);
+                commentsSnapshot.forEach(child => { updates[child.key] = null; });
+                await update(ref(db, 'comments'), updates);
             }
             showToast('User has been banned and their comments deleted.');
         } catch(err) { showToast('Error: ' + err.message); } finally { banModal.classList.remove('visible'); }
@@ -548,9 +543,7 @@ statusModalOk.addEventListener('click', () => statusModal.classList.remove('visi
 
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
-        document.querySelectorAll('.menu-popup').forEach(p => {
-            p.style.display = 'none';
-        });
+        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
     }
     if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
         if (profilePopup.style.display === 'block') {

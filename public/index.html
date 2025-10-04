@@ -31,7 +31,7 @@
             flex-direction: column;
         }
         .container {
-            max-width: 900px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 0 15px;
         }
@@ -105,13 +105,16 @@
             display: none; text-align: center; color: #666; font-size: 1.1em;
             position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
         }
-        #chat-form-wrapper { flex-shrink: 0; background-color: var(--bg-color); padding: 10px 0; border-top: 1px solid var(--accent-color); }
-        #chat-form { display: flex; flex-direction: column; gap: 10px; }
-        .main-form-row { display: flex; align-items: flex-start; gap: 10px; }
-        #image-upload-btn {
-            background: none; border: none; color: var(--gold-color); font-size: 1.5em;
-            cursor: pointer; padding: 12px 5px; transition: opacity 0.2s ease;
+        #chat-form-wrapper {
+            flex-shrink: 0; background-color: var(--bg-color);
+            padding: 10px 0; position: relative;
         }
+        #chat-form-wrapper::before {
+            content: ''; position: absolute; top: 0; left: 0;
+            width: 100%; height: 1px; background-color: var(--accent-color);
+        }
+        #chat-form { display: flex; flex-direction: column; gap: 10px; }
+        .main-form-row { display: flex; align-items: flex-end; gap: 10px; }
         .form-content {
             width: 100%; display: flex; align-items: center; background-color: var(--secondary-color);
             border-radius: 20px; padding: 5px 5px 5px 15px;
@@ -148,13 +151,18 @@
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             font-size: 1.1em; flex-shrink: 0; transition: all 0.3s ease;
         }
-        #cancel-reply-btn { background-color: var(--accent-color); color: var(--text-color); font-size: 1.3em; width: 40px; height: 40px; border-radius: 50%; display: none; align-items: center; justify-content: center; border:none; cursor: pointer; }
+        #cancel-reply-btn {
+            background-color: var(--accent-color); color: var(--text-color); font-size: 1.3em;
+            width: 40px; height: 40px; border-radius: 50%; display: none; align-items: center;
+            justify-content: center; border:none; cursor: pointer; flex-shrink: 0;
+        }
         #chat-messages { display: flex; flex-direction: column; }
         .comment-thread-wrapper { position: relative; }
         .pinned-comment-wrapper {
             background-color: rgba(255, 195, 0, 0.05);
             margin: -10px -15px 15px -15px;
-            padding: 10px 15px 0 15px;
+            padding: 10px 15px 0 20px;
+            border-bottom: 1px solid rgba(255, 195, 0, 0.1);
             position: relative;
         }
         .pinned-comment-wrapper::before {
@@ -167,7 +175,7 @@
             background-color: var(--gold-color);
         }
         .comment-thread-wrapper.is-expanded::before {
-            content: ''; position: absolute; left: 20px; top: 55px; bottom: 15px;
+            content: ''; position: absolute; left: 20px; top: 55px; bottom: 10px;
             width: 2px; background-color: var(--accent-color); transform: translateX(-50%);
         }
         .comment-thread { display: flex; gap: 15px; padding: 10px 0; }
@@ -190,20 +198,15 @@
             max-width: 120px; max-height: 120px; border-radius: 8px; cursor: pointer; object-fit: cover;
         }
         .message-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
-        .comment-footer { display: flex; align-items: center; gap: 15px; color: #a0a0a0; position: relative; }
+        .comment-footer { display: flex; align-items: center; gap: 15px; color: #a0a0a0; }
         .timestamp { font-size: 0.8em; }
         .action-btn { background: none; border: none; color: #a0a0a0; cursor: pointer; font-size: 0.85em; font-weight: 600; font-family: var(--font-family); padding: 4px 6px; border-radius: 4px; transition: all 0.3s ease; }
         .action-btn:hover { background-color: var(--accent-color); color: var(--text-color); }
-        .like-container { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 5px; }
-        .like-btn { background: none; border: none; cursor: pointer; color: #a0a0a0; transition: color 0.2s ease; }
-        .like-btn.liked { color: var(--red-color); }
-        .like-btn i { font-size: 1.2em; }
-        .like-count { font-size: 0.85em; font-weight: 600; }
         .message-menu { position: absolute; top: 0; right: 0; }
         .menu-btn { background: none; border: none; color: #a0a0a0; cursor: pointer; font-size: 1em; padding: 5px; opacity: 0.6; transition: opacity 0.2s ease; }
         .comment-thread-wrapper:hover .menu-btn, .comment-thread:hover .menu-btn { opacity: 1; }
         .menu-popup {
-            display: none; position: absolute; right: 25px; bottom: 10px;
+            display: none; position: absolute; right: 0; top: -10px;
             background-color: var(--secondary-color); border: 1px solid var(--accent-color);
             border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10; overflow: hidden; min-width: 150px;
         }
@@ -273,6 +276,11 @@
             .comment-thread { gap: 10px; }
             .comment-thread .avatar { width: 32px; height: 32px; }
             .replies-container { padding-left: 42px; }
+            .comment-thread-wrapper.is-expanded::before { left: 16px; top: 48px; }
+            .pinned-comment-wrapper {
+                margin-left: -10px; margin-right: -10px;
+                padding-left: 15px; padding-right: 10px;
+            }
             #chat-form-wrapper { padding: 8px 0; }
             .main-form-row { gap: 8px; }
             .form-content { padding: 2px 2px 2px 12px; }
@@ -281,8 +289,6 @@
             #image-preview-container { margin-left: 10px; }
             .img-preview { width: 45px; height: 45px; }
             .comment-images img { max-width: 90px; max-height: 90px; }
-            .like-btn i { font-size: 1.1em; }
-            .like-count { font-size: 0.8em; }
         }
     </style>
 </head>
