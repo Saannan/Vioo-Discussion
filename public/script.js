@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get, equalTo } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 async function initializeAppWithConfig() {
     try {
@@ -519,7 +519,8 @@ async function initializeAppWithConfig() {
                     await set(ref(db, `bannedUsers/${userIdToBan}`), {
                         bannedBy: currentUser.uid, bannedUntil: banUntil, timestamp: serverTimestamp()
                     });
-                    const commentsSnapshot = await get(query(ref(db, 'comments'), orderByChild('userId').equalTo(userIdToBan)));
+                    const commentsQuery = query(ref(db, 'comments'), orderByChild('userId'), equalTo(userIdToBan));
+                    const commentsSnapshot = await get(commentsQuery);
                     if (commentsSnapshot.exists()) {
                         const updates = {};
                         commentsSnapshot.forEach(child => { updates[child.key] = null; });
