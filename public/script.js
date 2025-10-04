@@ -5,11 +5,9 @@ import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, o
 async function initializeAppWithConfig() {
     try {
         const response = await fetch('/api/firebase-config');
-        if (!response.ok) {
-            throw new Error('Could not fetch Firebase config');
-        }
+        if (!response.ok) throw new Error('Could not fetch Firebase config');
+        
         const firebaseConfig = await response.json();
-
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
@@ -19,10 +17,7 @@ async function initializeAppWithConfig() {
         const headerAvatar = document.getElementById('header-avatar');
         const headerAvatarWrapper = document.getElementById('header-avatar-wrapper');
         const loader = document.getElementById('loader');
-        const profilePopup = document.getElementById('profile-popup');
         const profileBtn = document.getElementById('profile-btn');
-        const updateUsernameInput = document.getElementById('update-username');
-        const updatePfpInput = document.getElementById('update-pfp');
         const banModal = document.getElementById('ban-modal');
         const banUsernameEl = document.getElementById('ban-username');
         const toastNotification = document.getElementById('toast-notification');
@@ -39,6 +34,13 @@ async function initializeAppWithConfig() {
         const statusModalTitle = document.getElementById('status-modal-title');
         const statusModalText = document.getElementById('status-modal-text');
         const statusModalOk = document.getElementById('status-modal-ok');
+        const profileModal = document.getElementById('profile-modal');
+        const modalPfpDisplay = document.getElementById('modal-pfp-display');
+        const updateUsernameInput = document.getElementById('update-username');
+        const updatePfpInput = document.getElementById('update-pfp');
+        const logoutBtn = profileModal.querySelector('#logout-btn');
+        const bannedUsersSection = document.getElementById('banned-users-section');
+        const bannedUsersList = document.getElementById('banned-users-list');
 
         let currentUser = null;
         let currentUserProfile = null;
@@ -97,16 +99,14 @@ async function initializeAppWithConfig() {
             const isOwner = currentUser?.uid === userId;
             const profile = isOwner ? currentUserProfile : (allUsersCache[userId] || {});
             const username = profile?.username || 'Unknown User';
-            
             const isCurrentUserAdmin = currentUserProfile?.role === 'admin' || currentUserProfile?.role === 'superadmin';
             const isTargetAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
             const isTargetSuperAdmin = profile?.role === 'superadmin';
             const canAdminAct = !isOwner && (isCurrentUserAdmin || (isCurrentUserAdmin && !isTargetSuperAdmin));
-            
             const adminClass = isTargetAdmin ? 'admin-user' : '';
             const adminBadge = isTargetAdmin ? '<i class="fas fa-crown admin-badge"></i>' : '';
             const isPinned = msg.id === pinnedCommentId;
-            const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i>&nbsp;&nbsp;Pinned</span>' : '';
+            const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : '';
 
             let mentionHTML = '';
             const parentMessage = allMessagesCache[parentId];
@@ -135,9 +135,7 @@ async function initializeAppWithConfig() {
             }
             if (msg.imageUrls && msg.imageUrls.length > 0) {
                 bodyHTML += '<div class="comment-images">';
-                msg.imageUrls.forEach(url => {
-                    bodyHTML += `<img src="${url}" class="comment-image">`;
-                });
+                msg.imageUrls.forEach(url => { bodyHTML += `<img src="${url}" class="comment-image">`; });
                 bodyHTML += '</div>';
             }
 
@@ -468,15 +466,46 @@ async function initializeAppWithConfig() {
             }
         });
 
-        profileBtn.addEventListener('click', () => {
-            const isPopupVisible = profilePopup.style.display === 'block';
-            if (isPopupVisible) {
-                if (profileHasChanges) { location.reload(); } else { profilePopup.style.display = 'none'; }
+        async function renderBannedUsers() {
+            bannedUsersList.innerHTML = `<div class="spinner"></div>`;
+            const snapshot = await get(ref(db, 'bannedUsers'));
+            if (snapshot.exists()) {
+                const banned = snapshot.val();
+                let html = '';
+                Object.keys(banned).forEach(uid => {
+                    const username = allUsersCache[uid]?.username || 'Unknown User';
+                    html += `
+                        <div class="banned-user-item">
+                            <span>${escapeHTML(username)}</span>
+                            <button class="unban-btn" data-uid="${uid}">Unban</button>
+                        </div>`;
+                });
+                bannedUsersList.innerHTML = html;
             } else {
-                fullPfpUrl = currentUserProfile.profilePictureUrl || '';
-                updateUsernameInput.value = currentUserProfile.username;
-                updatePfpInput.value = displayTruncatedUrl(fullPfpUrl);
-                profilePopup.style.display = 'block';
+                bannedUsersList.innerHTML = '<p>No users are currently banned.</p>';
+            }
+        }
+        
+        profileBtn.addEventListener('click', () => {
+            modalPfpDisplay.src = getAvatarUrl(currentUserProfile);
+            fullPfpUrl = currentUserProfile.profilePictureUrl || '';
+            updateUsernameInput.value = currentUserProfile.username;
+            updatePfpInput.value = displayTruncatedUrl(fullPfpUrl);
+            
+            if (currentUserProfile.role === 'admin' || currentUserProfile.role === 'superadmin') {
+                bannedUsersSection.style.display = 'block';
+                renderBannedUsers();
+            } else {
+                bannedUsersSection.style.display = 'none';
+            }
+            
+            profileModal.classList.add('visible');
+        });
+
+        profileModal.querySelector('.modal-close-btn').addEventListener('click', () => {
+            profileModal.classList.remove('visible');
+            if (profileHasChanges) {
+                location.reload();
             }
         });
 
@@ -490,7 +519,7 @@ async function initializeAppWithConfig() {
             saveProfileChanges();
         });
 
-        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+        logoutBtn.addEventListener('click', () => signOut(auth));
 
         async function saveProfileChanges() {
             const newUsername = updateUsernameInput.value.trim();
@@ -506,8 +535,22 @@ async function initializeAppWithConfig() {
                 await update(ref(db), updates);
                 await updateProfile(currentUser, { displayName: newUsername });
                 profileHasChanges = true;
+                showToast('Profile will update on next reload.');
             }
         }
+
+        updateUsernameInput.addEventListener('blur', saveProfileChanges);
+        updateUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+        updatePfpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+        
+        bannedUsersList.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('unban-btn')) {
+                const uidToUnban = e.target.dataset.uid;
+                await remove(ref(db, `bannedUsers/${uidToUnban}`));
+                showToast('User has been unbanned.');
+                renderBannedUsers();
+            }
+        });
 
         banModal.addEventListener('click', async (e) => {
             if (e.target.matches('.modal-close-btn')) { banModal.classList.remove('visible'); return; }
@@ -542,11 +585,6 @@ async function initializeAppWithConfig() {
         document.addEventListener('click', e => {
             if (!e.target.closest('.message-menu')) {
                 document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
-            }
-            if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
-                if (profilePopup.style.display === 'block') {
-                    if (profileHasChanges) { location.reload(); } else { profilePopup.style.display = 'none'; }
-                }
             }
         });
 
