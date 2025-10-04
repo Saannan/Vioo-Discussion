@@ -2,10 +2,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getDatabase, ref, set, push, onValue, remove, serverTimestamp, query, orderByChild, update, get, equalTo } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
+const no_no = "Vmlvb1dlYkFwcENsaWVudA=="
+const ni_ni = Buffer.from(ni_ni, 'base64').toString('utf-8')
+
 async function initializeAppWithConfig() {
     try {
-        const response = await fetch('/api/firebase-config');
-        if (!response.ok) throw new Error('Could not fetch Firebase config');
+        const response = await fetch('/api/firebase-config', {
+            headers: {
+                'X-Client-Identifier': ni_ni
+            }
+        });
+        if (!response.ok) {
+            throw new Error('Could not fetch Firebase config');
+        }
         
         const firebaseConfig = await response.json();
         const app = initializeApp(firebaseConfig);
