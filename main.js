@@ -3,6 +3,7 @@ const path = require('path');
 const admin = require('firebase-admin');
 
 const serviceAccount = require('./key/serviceAccountKey.json');
+const allowedIPs = require('./key/ip.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -16,8 +17,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 app.get('/api/firebase-config', (req, res) => {
+    if (process.env.NODE_ENV !== 'development') {
+        const clientIp = req.headers['x-vercel-forwarded-for'] || req.ip;
+        
+        const isAllowedIP = (clientIp === allowedIPs.allowedIPv4 || clientIp === allowedIPs.allowedIPv6);
+
+        if (!isAllowedIP) {
+            return res.status(403).json({ error: 'Forbidden: IP address not allowed.' });
+        }
+        
+        const referer = req.get('Referer');
+        const clientIdentifier = req.get('X-Client-Identifier');
+        const allowedReferer = 'https://discussion.vioo.my.id/';
+
+        if (!referer || !referer.startsWith(allowedReferer) || clientIdentifier !== 'ViooWebAppClient') {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+    }
+
     res.json({
-        apiKey: process.env.FIREBASE_API_KEY || "AIzaSyD-JI0Lh4IzHYiD-RpzAJGQzOr6oxU4CwA",
+        apiKey: process.env.FIREBASE_API_KEY,
         authDomain: "vrequestsz.firebaseapp.com",
         databaseURL: "https://vrequestsz-default-rtdb.firebaseio.com",
         projectId: "vrequestsz",
