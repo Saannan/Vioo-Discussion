@@ -100,11 +100,6 @@ function createMessageHTML(msg) {
     const isPinned = msg.id === pinnedCommentId;
     const pinBadge = isPinned ? '<span class="pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : '';
 
-    const userHasLiked = currentUser && msg.likes && msg.likes[currentUser.uid];
-    const likeCount = msg.likes ? Object.keys(msg.likes).length : 0;
-    const likeIcon = userHasLiked ? 'fas' : 'far';
-    const likeBtnClass = userHasLiked ? 'like-btn liked' : 'like-btn';
-
     let mentionHTML = '';
     const parentMessage = allMessagesCache[parentId];
     if (parentMessage && parentMessage.parentId) {
@@ -138,6 +133,11 @@ function createMessageHTML(msg) {
         bodyHTML += '</div>';
     }
 
+    const hasLiked = msg.likes && msg.likes[currentUser?.uid];
+    const likeCount = Object.keys(msg.likes || {}).length;
+    const likeBtnClass = hasLiked ? 'like-btn liked' : 'like-btn';
+    const likeIconClass = hasLiked ? 'fas fa-heart' : 'far fa-heart';
+
     return `
         <div class="comment-thread" data-id="${id}" data-username="${escapedUsername}" data-user-id="${userId}">
             <img class="avatar" src="${getAvatarUrl(profile, username)}" alt="${escapedUsername}">
@@ -147,14 +147,14 @@ function createMessageHTML(msg) {
                 </div>
                 <div class="comment-body">${bodyHTML}</div>
                 <div class="comment-footer">
-                    <div class="comment-actions">
-                        <span class="timestamp">${formatTimestamp(timestamp)}</span>
-                        <button class="action-btn reply-btn">Reply</button>
-                    </div>
-                    <button class="${likeBtnClass}">
-                        <i class="${likeIcon} fa-heart"></i>
+                    <span class="timestamp">${formatTimestamp(timestamp)}</span>
+                    <button class="action-btn reply-btn">Reply</button>
+                    <div class="like-container">
+                        <button class="${likeBtnClass}">
+                            <i class="${likeIconClass}"></i>
+                        </button>
                         <span class="like-count">${likeCount > 0 ? likeCount : ''}</span>
-                    </button>
+                    </div>
                 </div>
                 ${menuOptions ? `<div class="message-menu"><button class="menu-btn"><i class="fas fa-ellipsis-v"></i></button><div class="menu-popup">${menuOptions}</div></div>` : ''}
             </div>
@@ -208,8 +208,8 @@ function buildAndRenderHTML() {
     if (pinnedCommentId && allMessagesCache[pinnedCommentId]) {
         const pinnedMsg = allMessagesCache[pinnedCommentId];
         const totalReplies = countAllReplies(pinnedMsg.id);
-        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : ''].join('');
-        const mainCommentHTML = createMessageHTML(pinnedMsg).replace(/<button class="action-btn reply-btn">Reply<\/button>/, footerBtns);
+        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : '', '<button class="action-btn reply-btn">Reply</button>' ].join('');
+        const mainCommentHTML = createMessageHTML(pinnedMsg).replace('<button class="action-btn reply-btn">Reply</button>', footerBtns);
         const repliesHTML = appendRepliesRecursive(pinnedMsg.id);
         
         pinnedHTML = `
@@ -226,8 +226,8 @@ function buildAndRenderHTML() {
 
     topLevel.forEach(msg => {
         const totalReplies = countAllReplies(msg.id);
-        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : ''].join('');
-        const mainCommentHTML = createMessageHTML(msg).replace(/<button class="action-btn reply-btn">Reply<\/button>/, footerBtns);
+        const footerBtns = [ totalReplies > 0 ? `<button class="action-btn toggle-replies-btn">View ${totalReplies} replies</button>` : '', '<button class="action-btn reply-btn">Reply</button>' ].join('');
+        const mainCommentHTML = createMessageHTML(msg).replace('<button class="action-btn reply-btn">Reply</button>', footerBtns);
         const repliesHTML = appendRepliesRecursive(msg.id);
         normalThreadsHTML += `<div class="comment-thread-wrapper" data-main-id="${msg.id}">${mainCommentHTML}<div class="replies-container">${repliesHTML}</div></div>`;
     });
@@ -391,14 +391,8 @@ chatMessagesContainer.addEventListener('click', (e) => {
     
     if (target.closest('.menu-btn')) {
         document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
-        thread.querySelector('.menu-popup').style.display = 'block';
-    } else if(target.closest('.like-btn')) {
-        const likeRef = ref(db, `comments/${messageId}/likes/${currentUser.uid}`);
-        if(target.closest('.like-btn').classList.contains('liked')) {
-            remove(likeRef);
-        } else {
-            set(likeRef, true);
-        }
+        const popup = thread.querySelector('.menu-popup');
+        popup.style.display = 'block';
     } else if (target.matches('.pin-btn')) {
         const isAlreadyPinned = messageId === pinnedCommentId;
         set(ref(db, 'pinnedComment'), isAlreadyPinned ? null : messageId);
@@ -423,6 +417,15 @@ chatMessagesContainer.addEventListener('click', (e) => {
         cancelReplyBtn.style.display = 'flex';
         submitBtn.style.display = 'none';
         messageInput.focus();
+    } else if (target.closest('.like-btn')) {
+        const likeRef = ref(db, `comments/${messageId}/likes/${currentUser.uid}`);
+        get(likeRef).then(snapshot => {
+            if (snapshot.exists()) {
+                remove(likeRef);
+            } else {
+                set(likeRef, true);
+            }
+        });
     } else if (target.matches('.toggle-replies-btn')) {
         const mainWrapper = target.closest('.comment-thread-wrapper');
         const mainId = mainWrapper.dataset.mainId;
@@ -545,7 +548,9 @@ statusModalOk.addEventListener('click', () => statusModal.classList.remove('visi
 
 document.addEventListener('click', e => {
     if (!e.target.closest('.message-menu')) {
-        document.querySelectorAll('.menu-popup').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.menu-popup').forEach(p => {
+            p.style.display = 'none';
+        });
     }
     if (!profileBtn.contains(e.target) && !profilePopup.contains(e.target)) {
         if (profilePopup.style.display === 'block') {
