@@ -54,6 +54,7 @@ async function initializeAppWithConfig() {
         let profileHasChanges = false;
         let filesToUpload = [];
         let fullPfpUrl = '';
+        let wasPreviouslyBanned = false;
 
         function showToast(message) {
             toastNotification.textContent = message;
@@ -235,6 +236,7 @@ async function initializeAppWithConfig() {
             if (snapshot.exists()) {
                 const banData = snapshot.val();
                 if (banData.bannedUntil > Date.now()) {
+                    wasPreviouslyBanned = true;
                     const expiryDate = new Date(banData.bannedUntil).toLocaleString();
                     statusModalTitle.textContent = 'Account Suspended';
                     statusModalText.textContent = `Your account is suspended until ${expiryDate}. You cannot post or comment.`;
@@ -245,9 +247,16 @@ async function initializeAppWithConfig() {
                     statusModalText.textContent = 'Your account suspension has ended. Please follow the community guidelines.';
                     statusModal.classList.add('visible');
                     remove(snapshot.ref);
+                    wasPreviouslyBanned = false;
                 }
             } else {
+                if (wasPreviouslyBanned) {
+                    statusModalTitle.textContent = 'Suspension Lifted';
+                    statusModalText.textContent = 'Your account suspension has been lifted. You can now comment again.';
+                    statusModal.classList.add('visible');
+                }
                 chatFormWrapper.style.display = 'block';
+                wasPreviouslyBanned = false;
             }
         }
 
