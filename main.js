@@ -16,16 +16,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 app.get('/api/firebase-config', (req, res) => {
-    const referer = req.get('Referer');
-    const clientIdentifier = req.get('X-Client-Identifier');
-    const allowedReferer = 'https://discussion.vioo.my.id/';
-
-    if (process.env.NODE_ENV !== 'development' && (!referer || !referer.startsWith(allowedReferer) || clientIdentifier !== 'ViooWebAppClient')) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
-
     res.json({
-        apiKey: process.env.FIREBASE_API_KEY,
+        apiKey: process.env.FIREBASE_API_KEY || "AIzaSyD-JI0Lh4IzHYiD-RpzAJGQzOr6oxU4CwA",
         authDomain: "vrequestsz.firebaseapp.com",
         databaseURL: "https://vrequestsz-default-rtdb.firebaseio.com",
         projectId: "vrequestsz",
