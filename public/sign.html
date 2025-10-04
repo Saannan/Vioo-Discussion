@@ -56,14 +56,13 @@
             font-size: 2.2em;
             font-weight: 700;
             color: var(--gold-color);
-            margin-bottom: 30px;
+            margin-bottom: 15px;
         }
-        .form-title {
-            text-align: left;
-            margin-bottom: 25px;
-            font-size: 1.8em;
-            font-weight: 700;
-            color: var(--primary-color);
+        .form-subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #888;
+            font-size: 1.1em;
         }
         .input-group {
             position: relative;
@@ -130,15 +129,6 @@
             transform: translateY(0);
             box-shadow: none;
         }
-        .message-area {
-            text-align: center;
-            font-size: 0.9em;
-            height: 20px;
-            line-height: 1.4;
-            margin-bottom: 20px;
-        }
-        .error-message { color: var(--error-color); }
-        .success-message { color: var(--success-color); }
         .form-switch {
             text-align: center;
             margin-top: 25px;
@@ -158,7 +148,7 @@
             left: 50%;
             transform: translate(-50%, 100px);
             background-color: var(--secondary-color);
-            color: var(--error-color);
+            color: var(--text-color);
             padding: 12px 25px;
             border-radius: 25px;
             border: 1px solid var(--accent-color);
@@ -174,15 +164,23 @@
             opacity: 1;
             visibility: visible;
         }
+        #auth-toast.error { color: var(--error-color); }
+        #auth-toast.success { color: var(--success-color); }
+        @media (max-width: 600px) {
+            body { font-size: calc(0.9em * 0.8); }
+            .auth-wrapper { padding: 25px 20px; }
+            .logo-header { font-size: 1.8em; }
+            .form-subtitle { font-size: 1em; }
+            .input-group input { padding: 8px 0; }
+            .submit-btn { padding: 12px; }
+        }
     </style>
 </head>
 <body>
     <div class="auth-wrapper">
         <div class="logo-header">Vioo-Discussion</div>
-
         <div id="login-container" class="auth-container active">
-            <h1 class="form-title">Welcome Back</h1>
-            <p class="message-area" id="login-message-area"></p>
+            <p class="form-subtitle">Welcome Back</p>
             <form id="login-form" class="auth-form" novalidate>
                 <div class="input-group floating-label">
                     <input type="email" id="login-email" placeholder=" " required>
@@ -201,10 +199,8 @@
                 <span>Don't have an account? <a href="#" id="show-register">Sign up</a></span>
             </div>
         </div>
-
         <div id="register-container" class="auth-container">
-            <h1 class="form-title">Create Account</h1>
-            <p class="message-area" id="register-message-area"></p>
+            <p class="form-subtitle">Create an Account</p>
             <form id="register-form" class="auth-form" novalidate>
                 <div class="input-group floating-label">
                     <input type="text" id="register-username" placeholder=" " required minlength="3">
@@ -233,11 +229,10 @@
         </div>
     </div>
     <div id="auth-toast"></div>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        
+
         async function getFirebaseConfig() {
             try {
                 const response = await fetch('/api/firebase-config');
@@ -245,11 +240,7 @@
                 return await response.json();
             } catch (error) {
                 console.error(error);
-                const messageArea = document.getElementById('login-message-area');
-                if (messageArea) {
-                    messageArea.textContent = 'Failed to load app configuration.';
-                    messageArea.className = 'message-area error-message';
-                }
+                showToast('Failed to load app configuration.', 'error');
                 return null;
             }
         }
@@ -267,17 +258,16 @@
             const showRegisterLink = document.getElementById('show-register');
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
-            const loginMessageArea = document.getElementById('login-message-area');
-            const registerMessageArea = document.getElementById('register-message-area');
             const passwordToggles = document.querySelectorAll('.password-toggle');
             const authToast = document.getElementById('auth-toast');
 
             let toastTimeout;
 
-            const showToast = (message) => {
+            const showToast = (message, type = 'error') => {
                 clearTimeout(toastTimeout);
                 authToast.textContent = message;
-                authToast.classList.add('show');
+                authToast.className = ``;
+                authToast.classList.add('show', type);
                 toastTimeout = setTimeout(() => {
                     authToast.classList.remove('show');
                 }, 3000);
@@ -285,8 +275,7 @@
             
             onAuthStateChanged(auth, user => {
                 if (user) {
-                    const activeMessageArea = registerContainer.classList.contains('hidden') ? loginMessageArea : registerMessageArea;
-                    showMessage(activeMessageArea, `Welcome, ${user.displayName || user.email}! Redirecting...`, false);
+                    showToast(`Welcome, ${user.displayName || user.email}! Redirecting...`, 'success');
                     setTimeout(() => { window.location.href = 'index.html'; }, 1500);
                 }
             });
@@ -296,8 +285,6 @@
                 loginContainer.classList.toggle('hidden', !showLogin);
                 registerContainer.classList.toggle('active', !showLogin);
                 registerContainer.classList.toggle('hidden', showLogin);
-                loginMessageArea.textContent = '';
-                registerMessageArea.textContent = '';
                 loginForm.reset();
                 registerForm.reset();
             };
@@ -310,11 +297,6 @@
                 button.textContent = isLoading ? 'Processing...' : originalText;
             };
 
-            const showMessage = (area, message, isError = true) => {
-                area.textContent = message;
-                area.className = isError ? 'message-area error-message' : 'message-area success-message';
-            };
-
             registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const username = document.getElementById('register-username').value.trim();
@@ -323,20 +305,19 @@
                 const confirmPassword = document.getElementById('confirm-password').value;
                 const registerBtn = document.getElementById('register-btn');
                 
-                if (username.length < 3) return showMessage(registerMessageArea, 'Username must be at least 3 characters.');
+                if (username.length < 3) return showToast('Username must be at least 3 characters.');
                 if (password.length < 8) return showToast('Password must be at least 8 characters long.');
-                if (password !== confirmPassword) return showMessage(registerMessageArea, 'Passwords do not match.');
+                if (password !== confirmPassword) return showToast('Passwords do not match.');
                 
                 setLoadingState(registerBtn, true, 'Create Account');
 
                 try {
                     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     await updateProfile(userCredential.user, { displayName: username });
-                    showMessage(registerMessageArea, 'Account created! Redirecting...', false);
                 } catch (error) {
-                    if (error.code === 'auth/email-already-in-use') showMessage(registerMessageArea, 'This email address is already in use.');
-                    else if (error.code === 'auth/invalid-email') showMessage(registerMessageArea, 'Please enter a valid email address.');
-                    else showMessage(registerMessageArea, 'An error occurred. Please try again.');
+                    if (error.code === 'auth/email-already-in-use') showToast('This email address is already in use.');
+                    else if (error.code === 'auth/invalid-email') showToast('Please enter a valid email address.');
+                    else showToast('An error occurred. Please try again.');
                 } finally {
                     setLoadingState(registerBtn, false, 'Create Account');
                 }
@@ -353,7 +334,7 @@
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
-                    showMessage(loginMessageArea, 'Invalid email or password. Please try again.');
+                    showToast('Invalid email or password. Please try again.');
                 } finally {
                     setLoadingState(loginBtn, false, 'Login');
                 }
