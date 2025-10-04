@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In / Sign Up</title>
+    <title>Vioo-Discussion - Sign In / Sign Up</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -17,8 +18,9 @@
             --font-family: 'Space Grotesk', sans-serif;
             --gold-color: #ffc300;
             --error-color: #e57373;
+            --success-color: #66bb6a;
         }
-        * { box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: var(--font-family);
             background-color: var(--bg-color);
@@ -27,59 +29,35 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            margin: 0;
+            padding: 20px;
+        }
+        .auth-wrapper {
+            background-color: var(--secondary-color);
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 420px;
+            overflow: hidden;
+            border: 1px solid var(--accent-color);
         }
         .auth-container {
-            background-color: var(--secondary-color);
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 400px;
-            overflow: hidden;
+            display: block;
         }
-        .auth-toggle {
-            display: flex;
-            border-bottom: 1px solid var(--accent-color);
-            margin-bottom: 30px;
-        }
-        .auth-toggle button {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            background: none;
-            color: #888;
-            font-size: 1.1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-        .auth-toggle button.active {
-            color: var(--gold-color);
-        }
-        .auth-toggle button.active::after {
-            content: '';
-            position: absolute;
-            bottom: -1px;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background-color: var(--gold-color);
-        }
-        .form-container {
-            position: relative;
-            transition: transform 0.4s ease-in-out;
-        }
-        .auth-form {
-            width: 100%;
+        .auth-container.hidden {
+            display: none;
         }
         .form-title {
             text-align: center;
-            margin-bottom: 25px;
-            font-size: 1.8em;
+            margin-bottom: 10px;
+            font-size: 2em;
             font-weight: 700;
             color: var(--primary-color);
+        }
+        .form-subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #888;
         }
         .auth-form .input-group {
             margin-bottom: 20px;
@@ -108,7 +86,7 @@
             cursor: pointer;
             color: #888;
         }
-        .auth-form button {
+        .auth-form .submit-btn {
             width: 100%;
             padding: 12px;
             background-color: var(--gold-color);
@@ -118,84 +96,113 @@
             font-size: 1.1em;
             font-weight: 700;
             cursor: pointer;
+            margin-top: 10px;
             transition: background-color 0.3s ease, opacity 0.3s ease;
         }
-        .auth-form button:hover {
+        .auth-form .submit-btn:hover {
             background-color: #e6b000;
         }
-        .auth-form button:disabled {
+        .auth-form .submit-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
-        #register-form { display: none; }
         .message-area {
             text-align: center;
-            margin-top: 15px;
             font-size: 0.9em;
-            height: 40px;
+            height: 20px;
             line-height: 1.4;
+            margin-bottom: 20px;
         }
         .error-message { color: var(--error-color); }
-        .success-message { color: #66bb6a; }
-        .password-strength {
-            font-size: 0.8em;
-            margin-top: -10px;
-            margin-bottom: 15px;
-            color: #888;
-            text-align: left;
+        .success-message { color: var(--success-color); }
+        .form-switch {
+            text-align: center;
+            margin-top: 25px;
+            color: #aaa;
+        }
+        .form-switch a {
+            color: var(--gold-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .form-switch a:hover {
+            text-decoration: underline;
+        }
+        #password-reqs {
+            list-style: none;
+            padding: 0;
+            margin: -10px 0 15px 5px;
+            font-size: 0.85em;
+        }
+        #password-reqs li {
+            color: var(--error-color);
+            margin-bottom: 4px;
+            transition: color 0.3s ease;
+        }
+        #password-reqs li.valid {
+            color: var(--success-color);
+        }
+        #password-reqs i {
+            width: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="auth-container">
-        <div class="auth-toggle">
-            <button id="login-toggle" class="active">Login</button>
-            <button id="register-toggle">Register</button>
-        </div>
-        
-        <div class="form-container">
+    <div class="auth-wrapper">
+        <div id="login-container" class="auth-container">
+            <h1 class="form-title">Welcome Back</h1>
+            <p class="form-subtitle">Sign in to continue to Vioo-Discussion</p>
+            <p class="message-area" id="login-message-area"></p>
             <form id="login-form" class="auth-form" novalidate>
-                <h2 class="form-title">Welcome Back</h2>
                 <div class="input-group">
                     <input type="email" id="login-email" placeholder="Email" required>
                 </div>
                 <div class="input-group">
                     <input type="password" id="login-password" placeholder="Password" required>
                     <span class="password-toggle" data-target="login-password">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
-                            <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
-                        </svg>
+                        <i class="fas fa-eye"></i>
                     </span>
                 </div>
-                <button type="submit" id="login-btn">Login</button>
+                <button type="submit" id="login-btn" class="submit-btn">Login</button>
             </form>
+            <div class="form-switch">
+                <span>Don't have an account? <a href="#" id="show-register">Sign up</a></span>
+            </div>
+        </div>
 
+        <div id="register-container" class="auth-container hidden">
+            <h1 class="form-title">Create an Account</h1>
+            <p class="form-subtitle">Get started with Vioo-Discussion</p>
+            <p class="message-area" id="register-message-area"></p>
             <form id="register-form" class="auth-form" novalidate>
-                <h2 class="form-title">Create Account</h2>
                 <div class="input-group">
-                    <input type="text" id="register-username" placeholder="Username (min. 3 characters)" required minlength="3">
+                    <input type="text" id="register-username" placeholder="Username" required minlength="3">
                 </div>
                 <div class="input-group">
                     <input type="email" id="register-email" placeholder="Email" required>
                 </div>
                 <div class="input-group">
                     <input type="password" id="register-password" placeholder="Password" required>
-                     <span class="password-toggle" data-target="register-password">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
-                            <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
-                        </svg>
+                    <span class="password-toggle" data-target="register-password">
+                        <i class="fas fa-eye"></i>
                     </span>
                 </div>
-                <p class="password-strength">Use 8+ characters with a mix of letters, numbers & symbols.</p>
+                <ul id="password-reqs">
+                    <li id="req-length"><i class="fas fa-times"></i> At least 8 characters</li>
+                    <li id="req-lowercase"><i class="fas fa-times"></i> A lowercase letter</li>
+                    <li id="req-uppercase"><i class="fas fa-times"></i> An uppercase letter</li>
+                    <li id="req-number"><i class="fas fa-times"></i> A number</li>
+                    <li id="req-symbol"><i class="fas fa-times"></i> A symbol</li>
+                </ul>
                 <div class="input-group">
                     <input type="password" id="confirm-password" placeholder="Confirm Password" required>
                 </div>
-                <button type="submit" id="register-btn">Register</button>
+                <button type="submit" id="register-btn" class="submit-btn">Create Account</button>
             </form>
+            <div class="form-switch">
+                <span>Already have an account? <a href="#" id="show-login">Log in</a></span>
+            </div>
         </div>
-        <p class="message-area" id="message-area"></p>
     </div>
 
     <script type="module">
@@ -205,15 +212,15 @@
         async function getFirebaseConfig() {
             try {
                 const response = await fetch('/api/firebase-config');
-                if (!response.ok) {
-                    throw new Error('Could not fetch Firebase config.');
-                }
+                if (!response.ok) throw new Error('Could not fetch Firebase config.');
                 return await response.json();
             } catch (error) {
                 console.error(error);
-                const messageArea = document.getElementById('message-area');
-                messageArea.textContent = 'Failed to load app configuration. Please try again later.';
-                messageArea.className = 'message-area error-message';
+                const messageArea = document.getElementById('login-message-area') || document.getElementById('register-message-area');
+                if (messageArea) {
+                    messageArea.textContent = 'Failed to load app configuration.';
+                    messageArea.className = 'message-area error-message';
+                }
                 return null;
             }
         }
@@ -225,50 +232,74 @@
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
 
-            const loginToggle = document.getElementById('login-toggle');
-            const registerToggle = document.getElementById('register-toggle');
+            const loginContainer = document.getElementById('login-container');
+            const registerContainer = document.getElementById('register-container');
+            const showLoginLink = document.getElementById('show-login');
+            const showRegisterLink = document.getElementById('show-register');
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
-            const messageArea = document.getElementById('message-area');
-            const loginBtn = document.getElementById('login-btn');
-            const registerBtn = document.getElementById('register-btn');
+            const loginMessageArea = document.getElementById('login-message-area');
+            const registerMessageArea = document.getElementById('register-message-area');
             const passwordToggles = document.querySelectorAll('.password-toggle');
-            
+            const passwordInput = document.getElementById('register-password');
+            const reqs = {
+                length: document.getElementById('req-length'),
+                lowercase: document.getElementById('req-lowercase'),
+                uppercase: document.getElementById('req-uppercase'),
+                number: document.getElementById('req-number'),
+                symbol: document.getElementById('req-symbol'),
+            };
+
             onAuthStateChanged(auth, user => {
                 if (user) {
-                    messageArea.textContent = `Welcome, ${user.displayName || user.email}! Redirecting...`;
-                    messageArea.className = 'message-area success-message';
+                    const activeMessageArea = registerContainer.classList.contains('hidden') ? loginMessageArea : registerMessageArea;
+                    activeMessageArea.textContent = `Welcome, ${user.displayName || user.email}! Redirecting...`;
+                    activeMessageArea.className = 'message-area success-message';
                     setTimeout(() => { window.location.href = 'index.html'; }, 1500);
                 }
             });
 
             const switchForm = (showLogin) => {
-                loginToggle.classList.toggle('active', showLogin);
-                registerToggle.classList.toggle('active', !showLogin);
-                loginForm.style.display = showLogin ? 'block' : 'none';
-                registerForm.style.display = showLogin ? 'none' : 'block';
-                messageArea.textContent = '';
+                loginContainer.classList.toggle('hidden', !showLogin);
+                registerContainer.classList.toggle('hidden', showLogin);
+                loginMessageArea.textContent = '';
+                registerMessageArea.textContent = '';
                 loginForm.reset();
                 registerForm.reset();
+                Object.values(reqs).forEach(req => {
+                    req.classList.remove('valid');
+                    req.querySelector('i').className = 'fas fa-times';
+                });
             };
 
-            loginToggle.addEventListener('click', () => switchForm(true));
-            registerToggle.addEventListener('click', () => switchForm(false));
+            showLoginLink.addEventListener('click', (e) => { e.preventDefault(); switchForm(true); });
+            showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); switchForm(false); });
 
-            const setLoadingState = (button, isLoading) => {
+            const setLoadingState = (button, isLoading, originalText) => {
                 button.disabled = isLoading;
-                button.textContent = isLoading ? 'Processing...' : button.dataset.originalText;
+                button.textContent = isLoading ? 'Processing...' : originalText;
             };
 
-            const showMessage = (message, isError = true) => {
-                messageArea.textContent = message;
-                messageArea.className = isError ? 'message-area error-message' : 'message-area success-message';
+            const showMessage = (area, message, isError = true) => {
+                area.textContent = message;
+                area.className = isError ? 'message-area error-message' : 'message-area success-message';
             };
+
+            const validateRequirement = (el, isValid) => {
+                el.classList.toggle('valid', isValid);
+                el.querySelector('i').className = isValid ? 'fas fa-check' : 'fas fa-times';
+            };
+
+            passwordInput.addEventListener('input', () => {
+                const value = passwordInput.value;
+                validateRequirement(reqs.length, value.length >= 8);
+                validateRequirement(reqs.lowercase, /[a-z]/.test(value));
+                validateRequirement(reqs.uppercase, /[A-Z]/.test(value));
+                validateRequirement(reqs.number, /\d/.test(value));
+                validateRequirement(reqs.symbol, /[!@#$%^&*(),.?":{}|<>]/.test(value));
+            });
             
-            const validatePassword = (password) => {
-                const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-                return regex.test(password);
-            };
+            const allReqsValid = () => Object.values(reqs).every(req => req.classList.contains('valid'));
 
             registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -276,32 +307,24 @@
                 const email = document.getElementById('register-email').value.trim();
                 const password = document.getElementById('register-password').value;
                 const confirmPassword = document.getElementById('confirm-password').value;
+                const registerBtn = document.getElementById('register-btn');
                 
-                if (password !== confirmPassword) {
-                    return showMessage('Passwords do not match.');
-                }
-                if (!validatePassword(password)) {
-                    return showMessage('Password does not meet the security requirements.');
-                }
+                if (username.length < 3) return showMessage(registerMessageArea, 'Username must be at least 3 characters.');
+                if (password !== confirmPassword) return showMessage(registerMessageArea, 'Passwords do not match.');
+                if (!allReqsValid()) return showMessage(registerMessageArea, 'Password does not meet all requirements.');
                 
-                registerBtn.dataset.originalText = 'Register';
-                setLoadingState(registerBtn, true);
+                setLoadingState(registerBtn, true, 'Create Account');
 
                 try {
                     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     await updateProfile(userCredential.user, { displayName: username });
-                    showMessage('Account created successfully! Redirecting...', false);
+                    showMessage(registerMessageArea, 'Account created! Redirecting...', false);
                 } catch (error) {
-                    const errorCode = error.code;
-                    if (errorCode === 'auth/email-already-in-use') {
-                        showMessage('This email address is already in use.');
-                    } else if (errorCode === 'auth/invalid-email') {
-                        showMessage('Please enter a valid email address.');
-                    } else {
-                        showMessage('An error occurred during registration.');
-                    }
+                    if (error.code === 'auth/email-already-in-use') showMessage(registerMessageArea, 'This email address is already in use.');
+                    else if (error.code === 'auth/invalid-email') showMessage(registerMessageArea, 'Please enter a valid email address.');
+                    else showMessage(registerMessageArea, 'An error occurred. Please try again.');
                 } finally {
-                    setLoadingState(registerBtn, false);
+                    setLoadingState(registerBtn, false, 'Create Account');
                 }
             });
 
@@ -309,24 +332,26 @@
                 e.preventDefault();
                 const email = document.getElementById('login-email').value.trim();
                 const password = document.getElementById('login-password').value;
+                const loginBtn = document.getElementById('login-btn');
 
-                loginBtn.dataset.originalText = 'Login';
-                setLoadingState(loginBtn, true);
+                setLoadingState(loginBtn, true, 'Login');
 
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
-                    showMessage('Invalid email or password. Please try again.');
+                    showMessage(loginMessageArea, 'Invalid email or password. Please try again.');
                 } finally {
-                    setLoadingState(loginBtn, false);
+                    setLoadingState(loginBtn, false, 'Login');
                 }
             });
 
             passwordToggles.forEach(toggle => {
                 toggle.addEventListener('click', () => {
                     const targetInput = document.getElementById(toggle.dataset.target);
-                    const type = targetInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                    targetInput.setAttribute('type', type);
+                    const icon = toggle.querySelector('i');
+                    const isPassword = targetInput.getAttribute('type') === 'password';
+                    targetInput.setAttribute('type', isPassword ? 'text' : 'password');
+                    icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
                 });
             });
         }
