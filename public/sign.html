@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vioo-Discussion - Sign In / Sign Up</title>
+    <title>Vioo-Discussion - Authentication</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: var(--font-family);
-            background-color: var(--bg-color);
+            background: radial-gradient(ellipse at center, #1a1a1a 0%, #0a0a0a 70%);
             color: var(--text-color);
             display: flex;
             align-items: center;
@@ -33,63 +33,83 @@
         }
         .auth-wrapper {
             background-color: var(--secondary-color);
-            padding: 30px 40px;
+            padding: 40px;
             border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
             width: 100%;
             max-width: 420px;
             overflow: hidden;
-            border: 1px solid var(--accent-color);
         }
         .auth-container {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .auth-container.active {
             display: block;
         }
-        .auth-container.hidden {
-            display: none;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .logo-header {
+            text-align: center;
+            font-size: 2.2em;
+            font-weight: 700;
+            color: var(--gold-color);
+            margin-bottom: 30px;
         }
         .form-title {
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 2em;
+            text-align: left;
+            margin-bottom: 25px;
+            font-size: 1.8em;
             font-weight: 700;
             color: var(--primary-color);
         }
-        .form-subtitle {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #888;
-        }
-        .auth-form .input-group {
-            margin-bottom: 20px;
+        .input-group {
             position: relative;
+            margin-bottom: 25px;
         }
-        .auth-form input {
+        .input-group input {
             width: 100%;
-            padding: 12px 15px;
-            background-color: var(--bg-color);
-            border: 1px solid var(--accent-color);
-            border-radius: 5px;
+            padding: 10px 0;
+            background-color: transparent;
+            border: none;
+            border-bottom: 2px solid var(--accent-color);
             color: var(--text-color);
             font-family: var(--font-family);
             font-size: 1em;
             transition: border-color 0.3s ease;
         }
-        .auth-form input:focus {
+        .input-group input:focus {
             outline: none;
-            border-color: var(--gold-color);
+            border-bottom-color: var(--gold-color);
+        }
+        .input-group label {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            color: #888;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+        .input-group input:focus + label,
+        .input-group input:not(:placeholder-shown) + label {
+            top: -14px;
+            font-size: 0.8em;
+            color: var(--gold-color);
         }
         .password-toggle {
             position: absolute;
             top: 50%;
-            right: 15px;
+            right: 5px;
             transform: translateY(-50%);
             cursor: pointer;
             color: #888;
         }
-        .auth-form .submit-btn {
+        .submit-btn {
             width: 100%;
-            padding: 12px;
-            background-color: var(--gold-color);
+            padding: 14px;
+            background-image: linear-gradient(45deg, #ffc300, #ffdb58);
             border: none;
             border-radius: 5px;
             color: var(--bg-color);
@@ -97,14 +117,18 @@
             font-weight: 700;
             cursor: pointer;
             margin-top: 10px;
-            transition: background-color 0.3s ease, opacity 0.3s ease;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 195, 0, 0.2);
         }
-        .auth-form .submit-btn:hover {
-            background-color: #e6b000;
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 195, 0, 0.4);
         }
-        .auth-form .submit-btn:disabled {
+        .submit-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            transform: translateY(0);
+            box-shadow: none;
         }
         .message-area {
             text-align: center;
@@ -128,37 +152,45 @@
         .form-switch a:hover {
             text-decoration: underline;
         }
-        #password-reqs {
-            list-style: none;
-            padding: 0;
-            margin: -10px 0 15px 5px;
-            font-size: 0.85em;
-        }
-        #password-reqs li {
+        #auth-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translate(-50%, 100px);
+            background-color: var(--secondary-color);
             color: var(--error-color);
-            margin-bottom: 4px;
-            transition: color 0.3s ease;
+            padding: 12px 25px;
+            border-radius: 25px;
+            border: 1px solid var(--accent-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 3000;
+            font-size: 0.95em;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
         }
-        #password-reqs li.valid {
-            color: var(--success-color);
-        }
-        #password-reqs i {
-            width: 20px;
+        #auth-toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+            visibility: visible;
         }
     </style>
 </head>
 <body>
     <div class="auth-wrapper">
-        <div id="login-container" class="auth-container">
+        <div class="logo-header">Vioo-Discussion</div>
+
+        <div id="login-container" class="auth-container active">
             <h1 class="form-title">Welcome Back</h1>
-            <p class="form-subtitle">Sign in to continue to Vioo-Discussion</p>
             <p class="message-area" id="login-message-area"></p>
             <form id="login-form" class="auth-form" novalidate>
-                <div class="input-group">
-                    <input type="email" id="login-email" placeholder="Email" required>
+                <div class="input-group floating-label">
+                    <input type="email" id="login-email" placeholder=" " required>
+                    <label for="login-email">Email</label>
                 </div>
-                <div class="input-group">
-                    <input type="password" id="login-password" placeholder="Password" required>
+                <div class="input-group floating-label">
+                    <input type="password" id="login-password" placeholder=" " required>
+                    <label for="login-password">Password</label>
                     <span class="password-toggle" data-target="login-password">
                         <i class="fas fa-eye"></i>
                     </span>
@@ -170,32 +202,28 @@
             </div>
         </div>
 
-        <div id="register-container" class="auth-container hidden">
-            <h1 class="form-title">Create an Account</h1>
-            <p class="form-subtitle">Get started with Vioo-Discussion</p>
+        <div id="register-container" class="auth-container">
+            <h1 class="form-title">Create Account</h1>
             <p class="message-area" id="register-message-area"></p>
             <form id="register-form" class="auth-form" novalidate>
-                <div class="input-group">
-                    <input type="text" id="register-username" placeholder="Username" required minlength="3">
+                <div class="input-group floating-label">
+                    <input type="text" id="register-username" placeholder=" " required minlength="3">
+                    <label for="register-username">Username</label>
                 </div>
-                <div class="input-group">
-                    <input type="email" id="register-email" placeholder="Email" required>
+                <div class="input-group floating-label">
+                    <input type="email" id="register-email" placeholder=" " required>
+                    <label for="register-email">Email</label>
                 </div>
-                <div class="input-group">
-                    <input type="password" id="register-password" placeholder="Password" required>
+                <div class="input-group floating-label">
+                    <input type="password" id="register-password" placeholder=" " required>
+                    <label for="register-password">Password</label>
                     <span class="password-toggle" data-target="register-password">
                         <i class="fas fa-eye"></i>
                     </span>
                 </div>
-                <ul id="password-reqs">
-                    <li id="req-length"><i class="fas fa-times"></i> At least 8 characters</li>
-                    <li id="req-lowercase"><i class="fas fa-times"></i> A lowercase letter</li>
-                    <li id="req-uppercase"><i class="fas fa-times"></i> An uppercase letter</li>
-                    <li id="req-number"><i class="fas fa-times"></i> A number</li>
-                    <li id="req-symbol"><i class="fas fa-times"></i> A symbol</li>
-                </ul>
-                <div class="input-group">
-                    <input type="password" id="confirm-password" placeholder="Confirm Password" required>
+                <div class="input-group floating-label">
+                    <input type="password" id="confirm-password" placeholder=" " required>
+                    <label for="confirm-password">Confirm Password</label>
                 </div>
                 <button type="submit" id="register-btn" class="submit-btn">Create Account</button>
             </form>
@@ -204,6 +232,7 @@
             </div>
         </div>
     </div>
+    <div id="auth-toast"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -216,7 +245,7 @@
                 return await response.json();
             } catch (error) {
                 console.error(error);
-                const messageArea = document.getElementById('login-message-area') || document.getElementById('register-message-area');
+                const messageArea = document.getElementById('login-message-area');
                 if (messageArea) {
                     messageArea.textContent = 'Failed to load app configuration.';
                     messageArea.className = 'message-area error-message';
@@ -241,35 +270,36 @@
             const loginMessageArea = document.getElementById('login-message-area');
             const registerMessageArea = document.getElementById('register-message-area');
             const passwordToggles = document.querySelectorAll('.password-toggle');
-            const passwordInput = document.getElementById('register-password');
-            const reqs = {
-                length: document.getElementById('req-length'),
-                lowercase: document.getElementById('req-lowercase'),
-                uppercase: document.getElementById('req-uppercase'),
-                number: document.getElementById('req-number'),
-                symbol: document.getElementById('req-symbol'),
-            };
+            const authToast = document.getElementById('auth-toast');
 
+            let toastTimeout;
+
+            const showToast = (message) => {
+                clearTimeout(toastTimeout);
+                authToast.textContent = message;
+                authToast.classList.add('show');
+                toastTimeout = setTimeout(() => {
+                    authToast.classList.remove('show');
+                }, 3000);
+            };
+            
             onAuthStateChanged(auth, user => {
                 if (user) {
                     const activeMessageArea = registerContainer.classList.contains('hidden') ? loginMessageArea : registerMessageArea;
-                    activeMessageArea.textContent = `Welcome, ${user.displayName || user.email}! Redirecting...`;
-                    activeMessageArea.className = 'message-area success-message';
+                    showMessage(activeMessageArea, `Welcome, ${user.displayName || user.email}! Redirecting...`, false);
                     setTimeout(() => { window.location.href = 'index.html'; }, 1500);
                 }
             });
 
             const switchForm = (showLogin) => {
+                loginContainer.classList.toggle('active', showLogin);
                 loginContainer.classList.toggle('hidden', !showLogin);
+                registerContainer.classList.toggle('active', !showLogin);
                 registerContainer.classList.toggle('hidden', showLogin);
                 loginMessageArea.textContent = '';
                 registerMessageArea.textContent = '';
                 loginForm.reset();
                 registerForm.reset();
-                Object.values(reqs).forEach(req => {
-                    req.classList.remove('valid');
-                    req.querySelector('i').className = 'fas fa-times';
-                });
             };
 
             showLoginLink.addEventListener('click', (e) => { e.preventDefault(); switchForm(true); });
@@ -285,22 +315,6 @@
                 area.className = isError ? 'message-area error-message' : 'message-area success-message';
             };
 
-            const validateRequirement = (el, isValid) => {
-                el.classList.toggle('valid', isValid);
-                el.querySelector('i').className = isValid ? 'fas fa-check' : 'fas fa-times';
-            };
-
-            passwordInput.addEventListener('input', () => {
-                const value = passwordInput.value;
-                validateRequirement(reqs.length, value.length >= 8);
-                validateRequirement(reqs.lowercase, /[a-z]/.test(value));
-                validateRequirement(reqs.uppercase, /[A-Z]/.test(value));
-                validateRequirement(reqs.number, /\d/.test(value));
-                validateRequirement(reqs.symbol, /[!@#$%^&*(),.?":{}|<>]/.test(value));
-            });
-            
-            const allReqsValid = () => Object.values(reqs).every(req => req.classList.contains('valid'));
-
             registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const username = document.getElementById('register-username').value.trim();
@@ -310,8 +324,8 @@
                 const registerBtn = document.getElementById('register-btn');
                 
                 if (username.length < 3) return showMessage(registerMessageArea, 'Username must be at least 3 characters.');
+                if (password.length < 8) return showToast('Password must be at least 8 characters long.');
                 if (password !== confirmPassword) return showMessage(registerMessageArea, 'Passwords do not match.');
-                if (!allReqsValid()) return showMessage(registerMessageArea, 'Password does not meet all requirements.');
                 
                 setLoadingState(registerBtn, true, 'Create Account');
 
